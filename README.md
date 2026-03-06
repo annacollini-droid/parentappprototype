@@ -1,6 +1,6 @@
-# Parent App prototype
+# Parent App Prototype
 
-This is a minimal Vite + React setup to run your existing `prototype (2).jsx` UI locally.
+A parent-facing app prototype built with Vite and React. Run it locally to view and interact with the UI.
 
 ## Getting started
 
@@ -10,23 +10,23 @@ This is a minimal Vite + React setup to run your existing `prototype (2).jsx` UI
    npm install
    ```
 
-2. **Move your prototype file**
-
-   - In Finder, move `prototype (2).jsx` from `Downloads` into this folder's `src` directory.
-   - Rename it to `ParentApp.jsx`, replacing the placeholder component that currently lives there.
-   - Ensure it still ends with:
-
-     ```jsx
-     export default function ParentApp() {
-       // ...
-     }
-     ```
-
-3. **Run the dev server**
+2. **Run the dev server**
 
    ```bash
    npm run dev
    ```
 
-4. Open the printed `http://localhost:5173` URL in your browser.
+3. Open **http://localhost:5173** in your browser.
 
+## Scripts
+
+| Command       | Description              |
+| ------------- | ------------------------ |
+| `npm run dev` | Start the dev server     |
+| `npm run build` | Build for production   |
+| `npm run preview` | Preview the production build |
+
+## Tech stack
+
+- [Vite](https://vitejs.dev/) – build tool and dev server  
+- [React](https://react.dev/) – UI
