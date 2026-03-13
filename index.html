@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Parent App Prototype</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="module" crossorigin src="/parentappprototype/assets/index-BeKez_9F.js"></script>
+    <link rel="stylesheet" crossorigin href="/parentappprototype/assets/index-BtffrTL8.css">
+  </head>
+  <body>
+    <div id="password-gate" style="
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background: #f9f6f2; font-family: sans-serif;
+    ">
+      <div style="
+        background: white; padding: 40px 32px; border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.1); width: 100%; max-width: 320px;
+        text-align: center;
+      ">
+        <p style="margin: 0 0 8px; font-size: 22px; font-weight: 600; color: #1a1a1a;">Parent App</p>
+        <p style="margin: 0 0 24px; font-size: 14px; color: #888;">Enter the password to view the prototype</p>
+        <input id="pw-input" type="password" placeholder="Password" style="
+          width: 100%; box-sizing: border-box; padding: 10px 14px;
+          border: 1px solid #ddd; border-radius: 8px; font-size: 15px;
+          outline: none; margin-bottom: 12px;
+        " />
+        <p id="pw-error" style="color: #e05; font-size: 13px; margin: 0 0 12px; display: none;">Incorrect password</p>
+        <button onclick="checkPassword()" style="
+          width: 100%; padding: 11px; background: #1a1a1a; color: white;
+          border: none; border-radius: 8px; font-size: 15px; cursor: pointer;
+        ">Enter</button>
+      </div>
+    </div>
+    <div id="root" style="display:none"></div>
+    <script>
+      document.getElementById('pw-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') checkPassword();
+      });
+      function checkPassword() {
+        if (document.getElementById('pw-input').value === 'parentapp') {
+          document.getElementById('password-gate').remove();
+          document.getElementById('root').style.display = '';
+        } else {
+          document.getElementById('pw-error').style.display = 'block';
+          document.getElementById('pw-input').value = '';
+          document.getElementById('pw-input').focus();
+        }
+      }
+    </script>
+  </body>
+</html>
+
