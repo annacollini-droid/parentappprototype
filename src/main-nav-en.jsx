@@ -1,12 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import ParentApp from "./ParentApp.jsx";
+import { BottomNavBarV2PreviewEN } from "./BottomNavBarV2Preview.jsx";
 import '@tonyarbor/tokens/css';
 import "./styles.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <ParentApp />
+    <BottomNavBarV2PreviewEN />
   </React.StrictMode>
 );
-

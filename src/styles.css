@@ -93,6 +93,15 @@ button:active {
   box-shadow: none !important;
 }
 
+/* Hide browser-native calendar/clock icons from date/time inputs */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* Hide scrollbar inside time picker drums */
+.time-drum::-webkit-scrollbar { display: none; }
+
 /* Prevent TextArea and Input from overflowing their container */
 .arbor-textarea-wrapper,
 .arbor-input-wrapper {
@@ -101,5 +110,6 @@ button:active {
 }
 .arbor-textarea-wrapper textarea {
   max-width: 100%;
+  font-size: 16px !important;
 }
 
