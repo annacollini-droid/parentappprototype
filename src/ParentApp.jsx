@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import womanParent from "./assets/woman-parent.png";
 import BottomNavBar from "./BottomNavBar.jsx";
-import { Avatar, Button, Card, Checkbox, Toggle, Input, TextArea, Tag, Banner, DatePicker, Combobox } from '@tonyarbor/components';
+import { Avatar, Button, Card, Checkbox, Toggle, Input, TextArea, Tag, Banner, DatePicker, Combobox, Toast } from '@tonyarbor/components';
 import { CircleUserRound, Lock, Bell, Info, User, School, Shapes, Bus, SunMoon, Utensils, ShoppingBag, MapPin, Users, ChevronLeft, ChevronRight, X, Calendar, Clock, ClipboardList, MessageCircle } from 'lucide-react';
 
 const children = [
@@ -536,7 +536,7 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
     });
     const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
     return (
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: 28 }}>
         {sortedMonths.map((month, mi) => (
           <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
@@ -1003,7 +1003,7 @@ export default function ParentApp() {
   const [feedbackError, setFeedbackError] = useState(false);
 
   // --- Absence reporting ---
-  const [myChildPage, setMyChildPage] = useState(null); // null | "absence-form" | "absence-success" | "absence-server-error" | "absence-offline-error"
+  const [myChildPage, setMyChildPage] = useState(null); // null | "absence-form" | "absence-success"
   const [absenceMultiDay, setAbsenceMultiDay] = useState(false);
   const [absenceStartDate, setAbsenceStartDate] = useState("2026-04-22");
   const [absenceEndDate, setAbsenceEndDate] = useState("2026-04-23");
@@ -1016,6 +1016,13 @@ export default function ParentApp() {
   const [absenceErrorSim, setAbsenceErrorSim] = useState("none"); // "none" | "server" | "offline"
   const [absenceSending, setAbsenceSending] = useState(false);
   const [showAbsenceCancelSheet, setShowAbsenceCancelSheet] = useState(false);
+  const [absenceOtherExpanded, setAbsenceOtherExpanded] = useState(false);
+  const [absenceToast, setAbsenceToast] = useState(null); // null | "server" | "offline"
+  useEffect(() => {
+    if (!absenceToast) return;
+    const t = setTimeout(() => setAbsenceToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [absenceToast]);
 
   // Date conversion helpers for DatePicker (works in local time, avoids UTC offset issues)
   const dateFromStr = (s) => { if (!s) return undefined; const [y, m, d] = s.split('-'); return new Date(+y, +m - 1, +d); };
@@ -1076,6 +1083,8 @@ export default function ParentApp() {
     setAbsenceErrorSim("none");
     setAbsenceSending(false);
     setShowAbsenceCancelSheet(false);
+    setAbsenceOtherExpanded(false);
+    setAbsenceToast(null);
   };
 
   const handleAbsenceSubmit = () => {
@@ -1091,8 +1100,8 @@ export default function ParentApp() {
     setAbsenceSending(true);
     setTimeout(() => {
       setAbsenceSending(false);
-      if (absenceErrorSim === "server") setMyChildPage("absence-server-error");
-      else if (absenceErrorSim === "offline") setMyChildPage("absence-offline-error");
+      if (absenceErrorSim === "server") setAbsenceToast("server");
+      else if (absenceErrorSim === "offline") setAbsenceToast("offline");
       else setMyChildPage("absence-success");
     }, 900);
   };
@@ -2532,7 +2541,7 @@ export default function ParentApp() {
                       });
                       const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                       return (
-                        <div style={{ marginTop: 20 }}>
+                        <div style={{ marginTop: 28 }}>
                           {pastDatesC.length > 0 && (
                             <div style={{ marginBottom: 16 }}>
                               <button onClick={() => setPastSessionsCollapsed(!pastSessionsCollapsed)}
@@ -2843,7 +2852,7 @@ export default function ParentApp() {
                     });
                     const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                     return (
-                      <div style={{ marginTop: 12 }}>
+                      <div style={{ marginTop: 28 }}>
                         {sortedMonths.map((month, mi) => (
                           <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
                             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
@@ -3061,7 +3070,7 @@ export default function ParentApp() {
                       });
                       const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                       return (
-                        <div style={{ marginTop: 12 }}>
+                        <div style={{ marginTop: 28 }}>
                           {sortedMonths.map((month, mi) => (
                             <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-grey-700)", marginBottom: 8 }}>{month} 2026</div>
@@ -3368,7 +3377,7 @@ export default function ParentApp() {
                     });
                     const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                     return (
-                      <div style={{ marginTop: 12 }}>
+                      <div style={{ marginTop: 28 }}>
                         {sortedMonths.map((month, mi) => (
                           <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-grey-700)", marginBottom: 8 }}>{month} 2026</div>
@@ -3698,7 +3707,7 @@ export default function ParentApp() {
                         weeks.forEach(d => { const month = d.label.split(" ").pop(); if (!groups[month]) groups[month] = []; groups[month].push(d); });
                         const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                         return (
-                          <div style={{ marginTop: 20 }}>
+                          <div style={{ marginTop: 28 }}>
                             {sortedMonths.map((month, mi) => (
                               <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
                                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-grey-700)", marginBottom: 8 }}>{month} 2026</div>
@@ -4090,7 +4099,7 @@ export default function ParentApp() {
                       weeks.forEach(d => { const m = d.label.split(" ").pop(); if (!groups[m]) groups[m] = []; groups[m].push(d); });
                       const months = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                       return (
-                        <div style={{ marginTop: 12 }}>
+                        <div style={{ marginTop: 28 }}>
                           {months.map((month, mi) => (
                             <div key={month} style={{ marginBottom: mi < months.length - 1 ? 20 : 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-grey-700)", marginBottom: 8 }}>{month} 2026</div>
@@ -4113,7 +4122,7 @@ export default function ParentApp() {
                       selected.forEach(x => { const m = x.session.label.split(" ").pop(); if (!groups[m]) groups[m] = []; groups[m].push(x); });
                       const months = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                       return (
-                        <div style={{ marginTop: 12 }}>
+                        <div style={{ marginTop: 28 }}>
                           {months.map((month, mi) => (
                             <div key={month} style={{ marginBottom: mi < months.length - 1 ? 20 : 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-grey-700)", marginBottom: 8 }}>{month} 2026</div>
@@ -4383,7 +4392,7 @@ export default function ParentApp() {
                             const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                             const multiMonth = sortedMonths.length > 1;
                             return (
-                              <div style={{ marginTop: 12 }}>
+                              <div style={{ marginTop: 28 }}>
                                 {/* Past sessions — collapsed by default */}
                                 {pastDates.length > 0 && (
                                   <div style={{ marginBottom: 16 }}>
@@ -4754,10 +4763,10 @@ export default function ParentApp() {
                   }}
                 >
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M12 4L6 10L12 16" stroke="#333" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M12 4L6 10L12 16" stroke="var(--color-text-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </button>
-                <span style={{ fontSize: 17, fontWeight: 600, color: "#333" }}>{browseFilter === "wraparound" ? "Wraparound care" : browseFilter === "clubs" ? "Clubs" : browseFilter === "trips" ? "Trips" : "What's available"}</span>
+                <span style={{ fontSize: 17, fontWeight: 600, color: "var(--color-text-primary)" }}>{browseFilter === "wraparound" ? "Wraparound care" : browseFilter === "clubs" ? "Clubs" : browseFilter === "trips" ? "Trips" : "What's available"}</span>
               </div>
 
               <div
@@ -4850,7 +4859,7 @@ export default function ParentApp() {
                       else if (item.id === 3) { setDetailPage("breakfast"); setFlowStep(null); setConsentChecked(false); setConsentError(false); setBkScenarioId("s1"); setBkIsFree(false); setSelectedBkPeriod(bkPeriodsS1[0]); setBookingOption("individual"); setBkAboutExpanded(false); setTermExpanded(false); setSelectedGridDates2({}); }
                     }}
                     style={{
-                      background: "#fff",
+                      background: "var(--color-bg-primary)",
                       border: "none",
                       borderRadius: 12,
                       padding: "14px 16px",
@@ -4871,7 +4880,7 @@ export default function ParentApp() {
                         </div>
                         {item.days && (
                           <div style={{ marginTop: 3 }}>
-                            <span style={{ fontSize: 14, color: "#595959" }}>
+                            <span style={{ fontSize: 14, color: "var(--color-text-secondary)" }}>
                               {getClubScheduleLabel(item, clubExtras[item.id])}
                             </span>
                           </div>
@@ -4889,18 +4898,18 @@ export default function ParentApp() {
                       </div>
 
                       {/* Vertical divider — always present */}
-                      <div style={{ width: 1, background: "#eee", margin: "0 14px", flexShrink: 0 }} />
+                      <div style={{ width: 1, background: "var(--color-grey-100)", margin: "0 14px", flexShrink: 0 }} />
                       {/* Price column — fixed width, pinned to top */}
                       <div style={{ width: 80, flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "flex-start" }}>
                         <span style={{ fontSize: 15, fontWeight: 700, color: "var(--color-grey-900)" }}>{displayPrice}</span>
                         {item.priceLabel && (
-                          <span style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{item.priceLabel}</span>
+                          <span style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>{item.priceLabel}</span>
                         )}
                       </div>
 
                       {/* Chevron — far right */}
                       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ flexShrink: 0, alignSelf: "flex-start", marginLeft: 10 }}>
-                        <path d="M7 5L11 9L7 13" stroke="#333" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M7 5L11 9L7 13" stroke="var(--color-text-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
                   </button>
@@ -4908,7 +4917,7 @@ export default function ParentApp() {
                 })}
                 {sorted.length === 0 && (
                   <div style={{ padding: 32, textAlign: "center" }}>
-                    <p style={{ color: "#bbb", fontSize: 14 }}>Nothing available right now</p>
+                    <p style={{ color: "var(--color-text-tertiary)", fontSize: 14 }}>Nothing available right now</p>
                   </div>
                 )}
               </div>
@@ -5657,28 +5666,84 @@ export default function ParentApp() {
             );
           })()}
 
-          {!subPage && activeTab === "my-child" && !myChildPage && (
-            <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%", padding: "20px 16px 32px" }}>
-              <Card padding="medium">
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", marginBottom: 6 }}>Report an absence</div>
-                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", lineHeight: "var(--font-line-height-normal)" }}>
-                    Let {selectedChild.school} know {selectedChild.name} won't be in. They'll receive your message straight away.
-                  </div>
-                </div>
-                <Button
-                  variant="primary"
-                  onClick={() => { resetAbsenceForm(); setMyChildPage("absence-form"); }}
-                  style={{ width: "100%" }}
+          {!subPage && activeTab === "my-child" && myChildPage === "absences" && (
+            <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", background: "var(--color-bg-primary)" }}>
+                <button
+                  onClick={() => setMyChildPage(null)}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                 >
-                  Notify the school
-                </Button>
-              </Card>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M12 4L6 10L12 16" stroke="var(--color-text-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                <span style={{ fontSize: 17, fontWeight: 600, color: "var(--color-text-primary)" }}>Absences</span>
+              </div>
+              <div style={{ padding: "16px 16px 32px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <Card padding="medium">
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", marginBottom: 6 }}>Report an absence</div>
+                    <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", lineHeight: "var(--font-line-height-normal)" }}>
+                      Let {selectedChild.school} know {selectedChild.name} won't be in.
+                    </div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={() => { resetAbsenceForm(); setMyChildPage("absence-form"); }}
+                    style={{ width: "100%" }}
+                  >
+                    Notify the school
+                  </Button>
+                </Card>
+
+                <Card padding="none">
+                  <div style={{ padding: "14px 16px 10px", fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Previous absences</div>
+                  <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />
+                  {[
+                    { date: "Thu 24 Apr 2026", reason: "Illness",                status: "pending"  },
+                    { date: "Mon 14 Apr 2026", reason: "Illness",                status: "approved" },
+                    { date: "Thu 27 Mar 2026", reason: "Medical appointment",    status: "approved" },
+                    { date: "Mon 10 Mar 2026", reason: "Dentist appointment",    status: "approved" },
+                  ].map((item, i, arr) => (
+                    <div key={item.date}>
+                      {i > 0 && <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", marginBottom: 2 }}>{item.date}</div>
+                          <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)" }}>{item.reason}</div>
+                        </div>
+                        {item.status === "pending"
+                          ? <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A", whiteSpace: "nowrap" }}>Awaiting review</span>
+                          : <Tag variant="neutral">Recorded</Tag>
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {!subPage && activeTab === "my-child" && !myChildPage && (
+            <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%", padding: "20px 0 32px", display: "flex", flexDirection: "column", gap: 24 }}>
+              {/* Absences */}
+              <div>
+                <div style={{ padding: "0 16px" }}>
+                  <Card padding="none" style={{ cursor: "pointer" }} onClick={() => setMyChildPage("absences")}>
+                    <div style={{ display: "flex", alignItems: "center", padding: "14px 16px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Absences</div>
+                      </div>
+                      <ChevronRight size={16} color="var(--color-grey-900)" strokeWidth={1.5} />
+                    </div>
+                  </Card>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {!selectedMessage && !showCompose && !myChildPage && (
+        {!selectedMessage && !showCompose && (!myChildPage || myChildPage === "absences") && (
           <BottomNavBar activeTab={subPage ? "book-pay" : activeTab} onTabChange={(tab) => { setSubPage(null); setSelectedBookingItem(null); setSelectedMessage(null); setMessagesSchool(null); setShowCompose(false); setActiveTab(tab); }} badges={{ messages: unreadCount }} />
         )}
 
@@ -6483,7 +6548,7 @@ export default function ParentApp() {
         )}
 
         {/* ── Absence reporting overlay ───────────────────────────────────── */}
-        {myChildPage && activeTab === "my-child" && (
+        {myChildPage && myChildPage !== "absences" && activeTab === "my-child" && (
           <div style={{ position: "absolute", inset: 0, zIndex: 90, background: "var(--color-bg-secondary)", display: "flex", flexDirection: "column" }}>
 
             {/* ── FORM ── */}
@@ -6495,14 +6560,14 @@ export default function ParentApp() {
               {/* Nav bar */}
               <div style={{ background: "var(--color-bg-primary)", borderBottom: "1px solid var(--color-border-default)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 12px", flexShrink: 0 }}>
                 <button
-                  onClick={() => isAbsenceFormDirty ? setShowAbsenceCancelSheet(true) : (resetAbsenceForm(), setMyChildPage(null))}
+                  onClick={() => isAbsenceFormDirty ? setShowAbsenceCancelSheet(true) : (resetAbsenceForm(), setMyChildPage("absences"))}
                   style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
                 >
                   <ChevronLeft size={20} color="var(--color-icon-default)" strokeWidth={1.5} />
                 </button>
                 <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Report an absence</span>
                 <button
-                  onClick={() => isAbsenceFormDirty ? setShowAbsenceCancelSheet(true) : (resetAbsenceForm(), setMyChildPage(null))}
+                  onClick={() => isAbsenceFormDirty ? setShowAbsenceCancelSheet(true) : (resetAbsenceForm(), setMyChildPage("absences"))}
                   style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                 >
                   <X size={20} color="var(--color-icon-default)" strokeWidth={1.5} />
@@ -6662,7 +6727,7 @@ export default function ParentApp() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                       <Button
                         variant="destructive-secondary"
-                        onClick={() => { resetAbsenceForm(); setMyChildPage(null); }}
+                        onClick={() => { resetAbsenceForm(); setMyChildPage("absences"); }}
                         style={{ width: "100%" }}
                       >
                         Leave
@@ -6676,6 +6741,18 @@ export default function ParentApp() {
                       </Button>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* ── ERROR TOAST ── */}
+              {absenceToast && (
+                <div style={{ position: "absolute", bottom: 84, left: 16, right: 16, zIndex: 200 }}>
+                  <Toast
+                    variant={absenceToast === "offline" ? "warning" : "danger"}
+                    message={absenceToast === "offline" ? "No connection. Check your signal and try again." : "Something went wrong. Please try again."}
+                    onClose={() => setAbsenceToast(null)}
+                    style={{ width: "100%" }}
+                  />
                 </div>
               )}
             </>)}
@@ -6696,7 +6773,7 @@ export default function ParentApp() {
                 </div>
 
                 {/* Scrollable content */}
-                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 24px 20px" }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: "auto", background: "var(--color-bg-secondary)", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 24px 20px" }}>
                   {/* Success circle */}
                   <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-success-050)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, flexShrink: 0 }}>
                     <svg width="28" height="28" viewBox="0 0 36 36" fill="none"><path d="M10 18L16 24L26 12" stroke="var(--color-success-700)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -6726,9 +6803,20 @@ export default function ParentApp() {
 
                     {/* Reason */}
                     <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: "0 0 4px" }}>Reason</p>
-                    <p style={{ fontSize: 14, color: "var(--color-text-primary)", margin: 0, lineHeight: 1.5 }}>
-                      {absenceReason === "Other" ? `Other — ${absenceOtherText}` : absenceReason}
-                    </p>
+                    {absenceReason === "Other" ? (
+                      <>
+                        <p style={{ fontSize: 14, color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.5, ...(absenceOtherExpanded ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>
+                          {`Other — ${absenceOtherText}`}
+                        </p>
+                        <button onClick={() => setAbsenceOtherExpanded(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 14, color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2, fontFamily: "inherit" }}>
+                          {absenceOtherExpanded ? "Read less" : "Read more"}
+                        </button>
+                      </>
+                    ) : (
+                      <p style={{ fontSize: 14, color: "var(--color-text-primary)", margin: 0, lineHeight: 1.5 }}>
+                        {absenceReason}
+                      </p>
+                    )}
                   </div>
 
                   {/* What happens next */}
@@ -6737,7 +6825,7 @@ export default function ParentApp() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                         <ClipboardList size={16} color="var(--color-text-secondary)" style={{ flexShrink: 0, marginTop: 3 }} />
-                        <p style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.5, margin: 0 }}>The school will review your report when they next take the register</p>
+                        <p style={{ fontSize: 14, color: "var(--color-text-primary)", lineHeight: 1.5, margin: 0 }}>The school will review your report shortly</p>
                       </div>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                         <MessageCircle size={16} color="var(--color-text-secondary)" style={{ flexShrink: 0, marginTop: 3 }} />
@@ -6759,87 +6847,6 @@ export default function ParentApp() {
               </div>
             )}
 
-            {/* ── SERVER ERROR ── */}
-            {myChildPage === "absence-server-error" && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                {/* White top block with close button */}
-                <div style={{ background: "var(--color-white)", flexShrink: 0 }}>
-                  <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4 }}>
-                    <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px 0" }}>
-                    <button onClick={() => { resetAbsenceForm(); setMyChildPage(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
-                    </button>
-                  </div>
-                </div>
-                {/* Scrollable content */}
-                <div style={{ flex: 1, overflowY: "auto", background: "var(--color-bg-secondary)", padding: "40px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  {/* Error icon */}
-                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-destructive-050)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, flexShrink: 0 }}>
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="var(--color-icon-destructive)" strokeWidth="2" /><path d="M14 9V15" stroke="var(--color-icon-destructive)" strokeWidth="2" strokeLinecap="round" /><circle cx="14" cy="19" r="1.2" fill="var(--color-icon-destructive)" /></svg>
-                  </div>
-                  <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 24px", textAlign: "center" }}>Something went wrong on our end</h1>
-                  <Banner
-                    variant="destructive"
-                    title={`${selectedChild.school} has not been notified`}
-                    message={`Tap 'Try again' to send your report. If the problem continues, contact the school directly.`}
-                    icon={false}
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                {/* Footer */}
-                <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
-                  <Button variant="primary" style={{ width: "100%" }} onClick={handleAbsenceSubmit}>
-                    Try again
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ── OFFLINE ERROR ── */}
-            {myChildPage === "absence-offline-error" && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-                {/* White top block with close button */}
-                <div style={{ background: "var(--color-white)", flexShrink: 0 }}>
-                  <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4 }}>
-                    <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px 0" }}>
-                    <button onClick={() => { resetAbsenceForm(); setMyChildPage(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
-                    </button>
-                  </div>
-                </div>
-                {/* Scrollable content */}
-                <div style={{ flex: 1, overflowY: "auto", background: "var(--color-bg-secondary)", padding: "40px 24px 24px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  {/* WiFi-off icon */}
-                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-warning-050)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, flexShrink: 0 }}>
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                      <path d="M4 8C7 5 10.8 3 14 3C17.2 3 21 5 24 8" stroke="var(--color-icon-warning)" strokeWidth="2" strokeLinecap="round" />
-                      <path d="M7.5 11.5C9.5 9.5 11.7 8.5 14 8.5C16.3 8.5 18.5 9.5 20.5 11.5" stroke="var(--color-icon-warning)" strokeWidth="2" strokeLinecap="round" />
-                      <path d="M11 15C12 14 13 13.5 14 13.5C15 13.5 16 14 17 15" stroke="var(--color-icon-warning)" strokeWidth="2" strokeLinecap="round" />
-                      <circle cx="14" cy="20" r="1.5" fill="var(--color-icon-warning)" />
-                      <path d="M5 5L23 23" stroke="var(--color-icon-warning)" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 24px", textAlign: "center" }}>No connection</h1>
-                  <Banner
-                    variant="warning"
-                    title={`${selectedChild.school} has not been notified`}
-                    message={`Check your connection and tap 'Try again'. If the problem continues, contact the school directly.`}
-                    icon={false}
-                    style={{ width: "100%" }}
-                  />
-                </div>
-                {/* Footer */}
-                <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
-                  <Button variant="primary" style={{ width: "100%" }} onClick={handleAbsenceSubmit}>
-                    Try again
-                  </Button>
-                </div>
-              </div>
-            )}
 
           </div>
         )}
