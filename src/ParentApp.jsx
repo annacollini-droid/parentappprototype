@@ -1158,7 +1158,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const inboxMessageIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const unreadCount = inboxMessageIds.filter(id => !readMessages.has(id)).length;
 
-  const mealsBalance = 3.50 + mealsTopUpAmount;
+  const mealsBalance = 13.50 + mealsTopUpAmount;
   const baseWraparoundBalance = 80.0;
   const wraparoundBalance = baseWraparoundBalance + toppedUpAmount;
   const lowFundsThreshold = 5.0;
@@ -1723,7 +1723,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             {effectivePeriod && (
               <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
                 {effectivePeriod.type === "termly" && selectedClub.deadlineLabel && (
-                  <p style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {selectedClub.deadlineLabel}</p>
+                  <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {selectedClub.deadlineLabel}</p>
                 )}
                 <button onClick={onCta} className="btn-action"
                   style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
@@ -2197,7 +2197,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             {bookingOption && (
               <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
                 {bookingOption === "individual" && <p style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Book by 12:30 on the day</p>}
-                {bookingOption === "term" && wraparoundClubConfig?.blockDeadlineLabel && <p style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {wraparoundClubConfig.blockDeadlineLabel}</p>}
+                {bookingOption === "term" && wraparoundClubConfig?.blockDeadlineLabel && <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {wraparoundClubConfig.blockDeadlineLabel}</p>}
                 <button onClick={() => {
                   if (bookingOption === "individual") { setFlowStep("choose-dates"); setSelectedGridDates({}); }
                   else { setFlowStep("payment"); setReviewDatesExpanded(false); }
@@ -2909,7 +2909,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             {selectedBkPeriod && (
             <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "#fff" }}>
               {selectedBkPeriod.type === "daily" && <p style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Book by 15:00 the day before</p>}
-              {selectedBkPeriod.type === "termly" && breakfastClubConfig.blockDeadlineLabel && <p style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {breakfastClubConfig.blockDeadlineLabel}</p>}
+              {selectedBkPeriod.type === "termly" && breakfastClubConfig.blockDeadlineLabel && <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {breakfastClubConfig.blockDeadlineLabel}</p>}
               <button
                 onClick={() => {
                   if (selectedBkPeriod.type === "termly") { setFlowStep("payment"); setReviewDatesExpanded(false); }
@@ -3960,8 +3960,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                                 {(item.time || item.sessions) && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{[item.time, item.sessions && `${item.sessions} ${item.sessions === 1 ? "session" : "sessions"}`].filter(Boolean).join(" · ")}</div>}
                               </div>
                               {item.status === "cancelled"  && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA" }}>Cancelled</span>}
-                              {item.status === "pending-payment"  && <Tag variant="warning">Pending · awaiting payment</Tag>}
-                              {item.status === "pending-approval" && <Tag variant="warning">Awaiting school confirmation</Tag>}
+                              {item.status === "pending-payment"  && <Tag variant="default" style={{ background: "var(--color-warning-050)", color: "var(--color-icon-warning)" }}>Pending · awaiting payment</Tag>}
+                              {item.status === "pending-approval" && <Tag variant="default" style={{ background: "var(--color-warning-050)", color: "var(--color-icon-warning)" }}>Awaiting school confirmation</Tag>}
                             </div>
                             {(item.category === "Club" || item.category === "Wraparound") && <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 2 }}><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </div>
@@ -4242,7 +4242,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         )}
                         {isUrgent && (
                           <div style={{ marginTop: 8 }}>
-                            <Tag variant="default">Closes {item.deadlineLabel} &middot; {item.places} places left</Tag>
+                            <Tag variant="default">Closes {item.deadlineLabel}</Tag>
                           </div>
                         )}
                         {item.sameDayCutoff && (
@@ -4370,25 +4370,27 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         {group.items.map((tx, i) => (
                           <div key={i}>
                             {i > 0 && <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />}
-                            <div style={{ display: "flex", alignItems: tx.paidBy ? "flex-start" : "center", gap: 12, padding: "12px 16px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px" }}>
                               <div style={{ width: 48, flexShrink: 0 }}>
                                 <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{tx.date}</div>
                               </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)" }}>{tx.description}</div>
-                                {tx.paidBy && (
-                                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>
-                                    {tx.paidBy === "you" ? "Added by you" : `Added by ${tx.paidBy}`}
+                              <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                  <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)" }}>{tx.description}</div>
+                                  <div style={{ flexShrink: 0, fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", fontVariantNumeric: "tabular-nums", color: tx.amount > 0 ? "var(--color-brand-600)" : "var(--color-text-primary)", ...(tx.amount > 0 && { background: "var(--color-brand-050)", borderRadius: 20, padding: "2px 8px" }) }}>
+                                    {tx.amount > 0 ? `+£${tx.amount.toFixed(2)}` : `−£${Math.abs(tx.amount).toFixed(2)}`}
                                   </div>
-                                )}
-                              </div>
-                              <div style={{ flexShrink: 0, textAlign: "right" }}>
-                                <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", fontVariantNumeric: "tabular-nums", color: tx.amount > 0 ? "var(--color-brand-600)" : "var(--color-text-primary)", ...(tx.amount > 0 && { background: "var(--color-brand-050)", borderRadius: 20, padding: "2px 8px", display: "inline-block" }) }}>
-                                  {tx.amount > 0 ? `+£${tx.amount.toFixed(2)}` : `−£${Math.abs(tx.amount).toFixed(2)}`}
                                 </div>
-                                {tx.amount > 0 && (
-                                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
-                                    £{tx.balanceAfter.toFixed(2)}
+                                {(tx.paidBy || tx.amount > 0) && (
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                    <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)" }}>
+                                      {tx.paidBy ? (tx.paidBy === "you" ? "Added by you" : `Added by ${(() => { const parts = tx.paidBy.trim().split(" "); return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : parts[0]; })()}`) : ""}
+                                    </div>
+                                    {tx.amount > 0 && (
+                                      <div style={{ flexShrink: 0, fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
+                                        £{tx.balanceAfter.toFixed(2)}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -4425,8 +4427,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     >
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 8, background: isLow ? "#fff4e5" : "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <account.Icon size={18} color={isLow ? "#975a00" : "var(--color-brand-600)"} strokeWidth={1.5} />
+                          <div style={{ width: 32, height: 32, borderRadius: 8, background: isLow ? "var(--color-warning-050)" : "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <account.Icon size={18} color={isLow ? "var(--color-icon-warning)" : "var(--color-brand-600)"} strokeWidth={1.5} />
                           </div>
                           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </div>
@@ -4461,9 +4463,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   </div>
                   {bookingsNeedsAttentionCount > 0 && (
                     <button onClick={() => { setBookingsFilter("needs-attention"); setSubPage("my-bookings"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--color-red-050, #fff1f1)", border: "1px solid var(--color-red-200, #fca5a5)", borderRadius: 99, padding: "2px 8px 2px 6px" }}>
-                        <span style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-destructive)" }}>{bookingsNeedsAttentionCount} need attention</span>
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="var(--color-text-destructive)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--color-bg-warning-light)", border: "1px solid var(--color-warning-100)", borderRadius: 99, padding: "2px 8px 2px 6px" }}>
+                        <span style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-warning)" }}>{bookingsNeedsAttentionCount} need attention</span>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="var(--color-text-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </span>
                     </button>
                   )}
