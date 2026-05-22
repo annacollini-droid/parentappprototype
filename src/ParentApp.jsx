@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import womanParent from "./assets/woman-parent.png";
 import BottomNavBar from "./BottomNavBar.jsx";
+import BookPayLandingV2 from "./BookPayLandingV2.jsx";
+
+// ── Exploration toggle ──────────────────────────────────────────────────────
+// true  → renders BookPayLandingV2.jsx (the sandbox)
+// false → renders the original inline landing (below)
+const EXPLORE_BOOK_PAY = true;
+// ───────────────────────────────────────────────────────────────────────────
 import { Avatar, Button, Card, Checkbox, Toggle, Input, TextArea, Tag, Banner, DatePicker, Combobox, Toast } from '@tonyarbor/components';
-import { CircleUserRound, Lock, Bell, Info, User, School, Shapes, Bus, SunMoon, Utensils, ShoppingBag, MapPin, Users, ChevronLeft, ChevronRight, X, Calendar, Clock, ClipboardList, MessageCircle, Wallet, ArrowRight } from 'lucide-react';
+import { CircleUserRound, Lock, Bell, Info, User, School, Shapes, Bus, SunMoon, Utensils, ShoppingBag, MapPin, Users, ChevronLeft, ChevronRight, ChevronDown, X, Calendar, Clock, ClipboardList, MessageCircle, Wallet, ArrowRight, AlertTriangle, Tag as TagIcon } from 'lucide-react';
 
 const children = [
   { id: 1, name: "Molly", initials: "M", school: "Oakwood Primary",    avatarColour: { bg: "#eeebf4", border: "#e2dcef", text: "#472b61" } }, // purple
@@ -11,10 +18,10 @@ const children = [
 ];
 
 const catColours = {
-  "Club":             { bg: "#EAF4F3", iconColor: "var(--color-grey-900)" },
+  "Club":             { bg: "var(--color-extended-orange-050)", iconColor: "var(--color-extended-orange-800)" },
   "Wraparound":       { bg: "#EAF4F3", iconColor: "var(--color-grey-900)" },
   "Trip":             { bg: "#EAF4F3", iconColor: "var(--color-grey-900)" },
-  "Meals":            { bg: "#EAF4F3", iconColor: "var(--color-grey-900)" },
+  "Meals":            { bg: "var(--color-extended-purple-050)", iconColor: "var(--color-extended-purple-800)" },
   "Parents' evening": { bg: "#EAF4F3", iconColor: "var(--color-grey-900)" },
   "Shop":             { bg: "#EAF4F3", iconColor: "var(--color-grey-900)" },
 };
@@ -137,20 +144,20 @@ const periodsForClub = (clubItem, extras) => {
   const base = { days: clubItem.days, start, end, name: clubItem.title };
   if (extras.isFree) {
     if (clubItem.individualOnly) {
-      return [{ ...base, id: `${clubItem.id}-daily`,  type: "daily",  price: 0, sessionsRemaining: null }];
+      return [{ ...base, id: `${clubItem.id}-daily`,  type: "daily",  price: 0, sessionsRemaining: null, label: extras.dailyLabel }];
     }
-    return   [{ ...base, id: `${clubItem.id}-termly`, type: "termly", price: 0, sessionsRemaining: extras.blockSessions }];
+    return   [{ ...base, id: `${clubItem.id}-termly`, type: "termly", price: 0, sessionsRemaining: extras.blockSessions, label: extras.termlyLabel }];
   }
   if (clubItem.blockOnly) {
-    return   [{ ...base, id: `${clubItem.id}-termly`, type: "termly", price: extras.blockPrice,        sessionsRemaining: extras.blockSessions }];
+    return   [{ ...base, id: `${clubItem.id}-termly`, type: "termly", price: extras.blockPrice,        sessionsRemaining: extras.blockSessions, label: extras.termlyLabel }];
   }
   if (clubItem.individualOnly) {
-    return   [{ ...base, id: `${clubItem.id}-daily`,  type: "daily",  price: extras.perSessionPrice,   sessionsRemaining: null }];
+    return   [{ ...base, id: `${clubItem.id}-daily`,  type: "daily",  price: extras.perSessionPrice,   sessionsRemaining: null, label: extras.dailyLabel }];
   }
   // Both options available → mixed (S5 equivalent)
   return [
-    { ...base, id: `${clubItem.id}-daily`,  type: "daily",  price: extras.perSessionPrice, sessionsRemaining: null },
-    { ...base, id: `${clubItem.id}-termly`, type: "termly", price: extras.blockPrice,       sessionsRemaining: extras.blockSessions },
+    { ...base, id: `${clubItem.id}-daily`,  type: "daily",  price: extras.perSessionPrice, sessionsRemaining: null,                label: extras.dailyLabel },
+    { ...base, id: `${clubItem.id}-termly`, type: "termly", price: extras.blockPrice,       sessionsRemaining: extras.blockSessions, label: extras.termlyLabel },
   ];
 };
 
@@ -175,7 +182,7 @@ const getClubScheduleLabel = (item, extras) => {
 };
 
 // Returns structured schedule parts for the details page.
-// When days have different times, returns { multiDay: true, days, times } for two-line rendering.
+// When days have different times, returns { multiDay: true, pairs: [{ label }, ...] } for one line per day-time pair.
 // When times are uniform, returns { multiDay: false, label } for single-line rendering.
 const getClubScheduleDetailParts = (item, extras) => {
   if (extras?.periods) {
@@ -189,7 +196,14 @@ const getClubScheduleDetailParts = (item, extras) => {
     if (uniqueTimes.size === 1) {
       return { multiDay: false, label: `${dayStr(entries)} \u00b7 ${[...uniqueTimes][0]}` };
     }
-    return { multiDay: true, days: dayStr(entries), times: entries.map(e => e.time).join(", ") };
+    return {
+      multiDay: true,
+      pairs: entries.map(e => ({ label: `${expandDay(e.days)} \u00b7 ${e.time}` })),
+    };
+  }
+  if (item.days && item.days.includes(",") && item.time) {
+    const days = item.days.split(",").map(s => DAY_PLURAL[s.trim()] ?? s.trim()).join(", ");
+    return { multiDay: true, pairs: [{ label: `${days} \u00b7 ${item.time}` }] };
   }
   return { multiDay: false, label: item.timeDisplay || `${expandDay(item.days)} \u00b7 ${item.time}` };
 };
@@ -421,13 +435,13 @@ function TopNav({ selectedChild, onSwitchChild, hideChildSwitcher, onProfileOpen
         alignItems: "center",
         justifyContent: "space-between",
         padding: "8px 16px",
-        boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.08)",
-        background: "#fff",
+        boxShadow: "0px 1px 2px 0px rgba(0,0,0,0.12)",
+        background: "var(--color-white)",
         flexShrink: 0,
       }}
     >
       {/* School logo placeholder */}
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: "#fff", border: "1px solid #efefef", flexShrink: 0 }} />
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--color-bg-secondary)", border: "1px solid var(--color-border-default)", flexShrink: 0 }} />
 
       {/* Right side: child switcher + profile */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -442,9 +456,9 @@ function TopNav({ selectedChild, onSwitchChild, hideChildSwitcher, onProfileOpen
         <button
           onClick={onProfileOpen}
           className="btn-icon"
-          style={{ width: 32, height: 32, borderRadius: "50%", background: "#f8f8f8", border: "1px solid #efefef", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
+          style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-bg-secondary)", border: "1px solid var(--color-border-default)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
         >
-          <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "#2f2f2f", letterSpacing: "0.01em" }}>KB</span>
+          <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)", letterSpacing: "0.01em" }}>KB</span>
         </button>
       </div>
     </div>
@@ -460,7 +474,7 @@ function BottomNav({ activeTab, onTabChange, unreadCount }) {
         justifyContent: "space-around",
         padding: "8px 0 12px",
         boxShadow: "0 -1px 0 rgba(0,0,0,0.06)",
-        background: "#fafafa",
+        background: "var(--color-white)",
         flexShrink: 0,
       }}
     >
@@ -537,7 +551,7 @@ function BottomNav({ activeTab, onTabChange, unreadCount }) {
   );
 }
 
-function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, location, clubLead, periodLabel, sessionCount, dates, isFree, total, fromAccount, onClose, onGoToBookings, confirmedDatesExpanded, setConfirmedDatesExpanded, bookingNudgeRating, setBookingNudgeRating }) {
+function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, location, clubLead, periodLabel, sessionCount, dates, isFree, total, fromAccount, onClose, onGoToBookings, confirmedDatesExpanded, setConfirmedDatesExpanded, bookingNudgeRating, setBookingNudgeRating, newLayout }) {
   const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const futureDates = (dates || []).filter(d => d.active !== false);
 
@@ -570,6 +584,82 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
       </div>
     );
   };
+
+  if (newLayout) {
+    return (
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--color-grey-050)", zIndex: 5 }}>
+        <div style={{ height: isMobile ? 20 : 50, background: "var(--color-grey-050)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
+          <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 8px 0", flexShrink: 0 }}>
+          <button onClick={onClose} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4L16 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M16 4L4 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+        <div style={{ padding: "8px 16px 24px", textAlign: "center", flexShrink: 0 }}>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-success-050)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+            <svg width="24" height="24" viewBox="0 0 36 36" fill="none"><path d="M10 18L16 24L26 12" stroke="var(--color-success-700)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </div>
+          <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: 0, lineHeight: 1.2, fontFamily: "inherit" }}>Booking confirmed</h2>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 24px" }}>
+          <div style={{ background: "var(--color-white)", borderRadius: 8, border: "1px solid var(--color-grey-100)", padding: 16 }}>
+            <p style={{ fontSize: "var(--font-size-6)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.2, fontFamily: "'Inter', sans-serif" }}>{clubName}</p>
+            <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.2 }}>For {childName}</p>
+            <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
+            {(days || time) && <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 8px" }}>{[days ? expandDay(days) : null, time].filter(Boolean).join(" · ")}</p>}
+            {sessionCount !== 1 && (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{sessionCount} sessions booked</span>
+                  <button onClick={() => setConfirmedDatesExpanded(!confirmedDatesExpanded)} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, display: "flex", alignItems: "center", gap: 2 }}>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500 }}>View dates</span>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: confirmedDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </button>
+                </div>
+                {confirmedDatesExpanded && renderDates()}
+              </>
+            )}
+            {(location || clubLead) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
+                {location && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                    <MapPin size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                    {location}
+                  </span>
+                )}
+                {clubLead && (
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                    <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                    {clubLead}
+                  </span>
+                )}
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--color-success-050)", borderRadius: 10, padding: "12px 14px", marginTop: 20 }}>
+              <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-success-700)" }}>{isFree ? "Cost" : fromAccount ? "Charged to account" : "Paid"}</span>
+              <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-success-700)" }}>{isFree ? "Free" : `£${Number.isInteger(total) ? total + ".00" : total.toFixed(2)}`}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding: "10px 16px 6px", textAlign: "center", borderTop: "1px solid var(--color-border-default)", background: "var(--color-white)", flexShrink: 0 }}>
+          <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-disabled)", marginBottom: 6 }}>Was it easy to book this club?</div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
+            {[["👎", 1], ["👍", 2]].map(([face, val]) => (
+              <button key={val} onClick={() => !bookingNudgeRating && setBookingNudgeRating(val)} className="btn-pill" style={{ background: "none", border: "none", cursor: bookingNudgeRating ? "default" : "pointer", fontSize: "var(--font-size-6)", minWidth: 36, minHeight: 36, display: "flex", alignItems: "center", justifyContent: "center", opacity: bookingNudgeRating && bookingNudgeRating !== val ? 0.2 : 1, transition: "opacity 0.15s", lineHeight: 1 }}>{face}</button>
+            ))}
+          </div>
+          {bookingNudgeRating && <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-disabled)", marginTop: 6 }}>Thanks for your feedback</div>}
+        </div>
+        <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)" }}>
+          <button onClick={onGoToBookings} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Go to my bookings</button>
+        </div>
+        <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
+          <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--color-white)", zIndex: 5 }}>
@@ -648,8 +738,7 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
 const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const WEEKDAYS_SHORT = ["Mo","Tu","We","Th","Fr","Sa","Su"];
 
-function MobileDatePicker({ value, onChange, label, min, error }) {
-  const [open, setOpen] = useState(false);
+function DatePickerSheet({ label, value, onChange, min, onClose }) {
   const selectedDate = value ? new Date(value + "T12:00:00") : null;
   const [viewDate, setViewDate] = useState(() => selectedDate || new Date());
 
@@ -682,35 +771,23 @@ function MobileDatePicker({ value, onChange, label, min, error }) {
 
   const toStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const shiftMonth = (delta) => { const d = new Date(viewDate); d.setDate(1); d.setMonth(d.getMonth() + delta); setViewDate(d); };
-
-  const handleDaySelect = (d) => { if (isDisabled(d)) return; onChange(toStr(d)); setOpen(false); };
-  const handleToday = () => { const t = new Date(); onChange(toStr(t)); setViewDate(t); setOpen(false); };
-
-  const displayValue = selectedDate
-    ? selectedDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-    : "Select date";
-
   const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - 1 + i);
 
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", minHeight: 52, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-      >
-        <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: error ? "var(--color-text-destructive)" : "var(--color-text-primary)" }}>{label}</span>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${error ? "var(--color-text-destructive)" : "var(--color-border-default)"}`, borderRadius: 8, height: 36, padding: "0 10px", background: "var(--color-bg-primary)" }}>
-          <span style={{ fontSize: "var(--font-size-3)", color: selectedDate ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>{displayValue}</span>
-          <Calendar size={14} strokeWidth={1.5} color={error ? "var(--color-text-destructive)" : "var(--color-icon-secondary)"} />
-        </div>
-      </button>
+  const handleDaySelect = (d) => { if (isDisabled(d)) return; onChange(toStr(d)); onClose(); };
+  const handleToday = () => { const t = new Date(); onChange(toStr(t)); setViewDate(t); onClose(); };
 
-      {open && (
-        <div>
-          <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />
-          <div style={{ padding: "0 16px 16px" }}>
-          {/* Month/year nav */}
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 15 }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: "var(--color-bg-primary)", borderRadius: "20px 20px 0 0", zIndex: 1 }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)", margin: "12px auto 8px" }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px 0 16px", borderBottom: "1px solid var(--color-border-default)" }}>
+          <span style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)" }}>{label}</span>
+          <button type="button" onClick={onClose} style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+            <X size={20} color="var(--color-icon-default)" strokeWidth={1.5} />
+          </button>
+        </div>
+        <div style={{ padding: "0 16px 36px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0 8px" }}>
             <button type="button" onClick={() => shiftMonth(-1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
               <ChevronLeft size={16} color="var(--color-text-primary)" />
@@ -729,15 +806,11 @@ function MobileDatePicker({ value, onChange, label, min, error }) {
               <ChevronRight size={16} color="var(--color-text-primary)" />
             </button>
           </div>
-
-          {/* Weekday headers */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 2 }}>
             {WEEKDAYS_SHORT.map(d => (
               <div key={d} style={{ textAlign: "center", fontSize: "var(--font-size-1)", fontWeight: 600, color: "var(--color-text-tertiary)", padding: "4px 0" }}>{d}</div>
             ))}
           </div>
-
-          {/* Day grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
             {cells.map((date, i) => {
               if (!date) return <div key={i} />;
@@ -760,27 +833,44 @@ function MobileDatePicker({ value, onChange, label, min, error }) {
               );
             })}
           </div>
-
-          {/* Today shortcut */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-grey-100)" }}>
             <button type="button" onClick={handleToday}
               style={{ background: "none", border: "none", cursor: "pointer", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-brand-600)", fontFamily: "inherit" }}>
               Today
             </button>
           </div>
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-function MobileTimePicker({ value, onChange, label }) {
-  const [open, setOpen] = useState(false);
-  const hourRef = useRef(null);
-  const minuteRef = useRef(null);
+function MobileDatePicker({ value, label, error, onOpen }) {
+  const selectedDate = value ? new Date(value + "T12:00:00") : null;
+  const displayValue = selectedDate
+    ? selectedDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : "Select date";
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", minHeight: 52, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+    >
+      <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: error ? "var(--color-text-destructive)" : "var(--color-text-primary)" }}>{label}</span>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${error ? "var(--color-text-destructive)" : "var(--color-border-default)"}`, borderRadius: 8, height: 36, padding: "0 10px", background: "var(--color-bg-primary)" }}>
+        <span style={{ fontSize: "var(--font-size-3)", color: selectedDate ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>{displayValue}</span>
+        <Calendar size={14} strokeWidth={1.5} color={error ? "var(--color-text-destructive)" : "var(--color-icon-secondary)"} />
+      </div>
+    </button>
+  );
+}
+
+function TimePickerSheet({ label, value, onChange, onClose }) {
   const ITEM_H = 44;
   const VISIBLE = 6;
+  const hourRef = useRef(null);
+  const minuteRef = useRef(null);
 
   const parseTime = (v) => {
     if (!v) return { h: 8, m: 50 };
@@ -799,19 +889,11 @@ function MobileTimePicker({ value, onChange, label }) {
   const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
 
   useEffect(() => {
-    const { h, m } = parseTime(value);
-    setSelHour(h);
-    setSelMinute(m);
-  }, [value]);
-
-  useEffect(() => {
-    if (open) {
-      requestAnimationFrame(() => {
-        if (hourRef.current) hourRef.current.scrollTop = selHour * ITEM_H;
-        if (minuteRef.current) minuteRef.current.scrollTop = (selMinute / 5) * ITEM_H;
-      });
-    }
-  }, [open]);
+    requestAnimationFrame(() => {
+      if (hourRef.current) hourRef.current.scrollTop = initH * ITEM_H;
+      if (minuteRef.current) minuteRef.current.scrollTop = (initM / 5) * ITEM_H;
+    });
+  }, []);
 
   const commitHour = (h) => {
     setSelHour(h);
@@ -834,22 +916,12 @@ function MobileTimePicker({ value, onChange, label }) {
       {items.map(n => {
         const sel = n === selVal;
         return (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onSelect(n)}
+          <button key={n} type="button" onClick={() => onSelect(n)}
             style={{
-              scrollSnapAlign: "start",
-              width: "100%",
-              height: ITEM_H,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontSize: "var(--font-size-4)",
-              fontWeight: sel ? 600 : 400,
+              scrollSnapAlign: "start", width: "100%", height: ITEM_H,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "none", cursor: "pointer", fontFamily: "inherit",
+              fontSize: "var(--font-size-4)", fontWeight: sel ? 600 : 400,
               background: sel ? "var(--color-brand-600)" : "transparent",
               color: sel ? "var(--color-white)" : "var(--color-text-primary)",
               borderRadius: sel ? 10 : 0,
@@ -863,32 +935,53 @@ function MobileTimePicker({ value, onChange, label }) {
   );
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", minHeight: 52, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-      >
-        <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)" }}>{label}</span>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--color-border-default)", borderRadius: 8, height: 36, padding: "0 10px", background: "var(--color-bg-primary)" }}>
-          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)" }}>{fmt(selHour)}:{fmt(selMinute)}</span>
-          <Clock size={14} strokeWidth={1.5} color="var(--color-icon-secondary)" />
+    <div style={{ position: "absolute", inset: 0, zIndex: 15 }}>
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, background: "var(--color-bg-primary)", borderRadius: "20px 20px 0 0", zIndex: 1 }}>
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)", margin: "12px auto 8px" }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px 0 16px", borderBottom: "1px solid var(--color-border-default)" }}>
+          <span style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)" }}>{label}</span>
+          <button type="button" onClick={onClose} style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+            <X size={20} color="var(--color-icon-default)" strokeWidth={1.5} />
+          </button>
         </div>
-      </button>
-
-      {open && (
-        <div>
-          <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />
-          <div style={{ padding: "0 16px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 8, paddingTop: 12 }}>
-              {drumCol(hourRef, hours, selHour, commitHour)}
-              <div style={{ fontSize: "var(--font-size-5)", fontWeight: 600, color: "var(--color-text-primary)", height: ITEM_H, display: "flex", alignItems: "center" }}>:</div>
-              {drumCol(minuteRef, minutes, selMinute, commitMinute)}
-            </div>
-          </div>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 8, padding: "16px 16px 8px" }}>
+          {drumCol(hourRef, hours, selHour, commitHour)}
+          <div style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", height: ITEM_H, display: "flex", alignItems: "center" }}>:</div>
+          {drumCol(minuteRef, minutes, selMinute, commitMinute)}
         </div>
-      )}
+        <div style={{ padding: "8px 16px 36px" }}>
+          <button type="button" onClick={onClose}
+            style={{ width: "100%", minHeight: 48, borderRadius: 10, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
+            Done
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function MobileTimePicker({ value, label, onOpen }) {
+  const fmt = (n) => String(n).padStart(2, "0");
+  const parseTime = (v) => {
+    if (!v) return { h: 8, m: 50 };
+    const [hStr, mStr] = v.split(":");
+    return { h: parseInt(hStr, 10), m: parseInt(mStr, 10) };
+  };
+  const { h, m } = parseTime(value);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", minHeight: 52, width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+    >
+      <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)" }}>{label}</span>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--color-border-default)", borderRadius: 8, height: 36, padding: "0 10px", background: "var(--color-bg-primary)" }}>
+        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)" }}>{fmt(h)}:{fmt(m)}</span>
+        <Clock size={14} strokeWidth={1.5} color="var(--color-icon-secondary)" />
+      </div>
+    </button>
   );
 }
 
@@ -901,7 +994,8 @@ export default function ParentApp() {
   const [clubDayFilter, setClubDayFilter] = useState(null); // null = all days; "mon"–"fri" = day filter
   const [wraparoundDayFilter, setWraparoundDayFilter] = useState(null);
   const [bookingsFilter, setBookingsFilter] = useState("needs-attention");
-  const bookingsNeedsAttentionCount = 3;
+  const [bookingsSectionState, setBookingsSectionState] = useState("attention"); // "attention" | "clear" | "empty"
+  const bookingsNeedsAttentionCount = 2;
   const [selectedBookingItem, setSelectedBookingItem] = useState(null);
   const [selectedUpcomingItem, setSelectedUpcomingItem] = useState(null);
   const [bookingReturnTo, setBookingReturnTo] = useState("list");
@@ -922,6 +1016,7 @@ export default function ParentApp() {
   const [bkAboutExpanded, setBkAboutExpanded] = useState(false);
   const [bkPatternApplied, setBkPatternApplied] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState(new Set());
+  const browseSectionRef = useRef(null);
   const bkScrollRef = useRef(null);
   const bkWeek2Ref = useRef(null);
   const bkDetailRef = useRef(null);
@@ -940,6 +1035,14 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const [saveCard, setSaveCard] = useState(false);
   const [showTopUpSheet, setShowTopUpSheet] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState(250);
+  const [topUpMinFlash, setTopUpMinFlash] = useState(false);
+  const topUpMinFlashTimer = useRef(null);
+  const flashTopUpMinError = () => {
+    setTopUpMinFlash(true);
+    if (topUpMinFlashTimer.current) clearTimeout(topUpMinFlashTimer.current);
+    topUpMinFlashTimer.current = setTimeout(() => setTopUpMinFlash(false), 2000);
+  };
+  useEffect(() => { setTopUpMinFlash(false); }, [topUpAmount]);
   const [topUpPaymentMethod, setTopUpPaymentMethod] = useState("card");
   const [showTopUpApplePay, setShowTopUpApplePay] = useState(false);
   const [topUpCardScreen, setTopUpCardScreen] = useState(false);
@@ -1043,6 +1146,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const [absenceErrorSim, setAbsenceErrorSim] = useState("none"); // "none" | "server" | "offline"
   const [absenceSending, setAbsenceSending] = useState(false);
   const [showAbsenceCancelSheet, setShowAbsenceCancelSheet] = useState(false);
+  const [absenceDatePickerActive, setAbsenceDatePickerActive] = useState(null); // null | "start" | "end"
+  const [absenceTimePickerActive, setAbsenceTimePickerActive] = useState(null); // null | "start" | "end"
   const [absenceOtherExpanded, setAbsenceOtherExpanded] = useState(false);
   const [absenceToast, setAbsenceToast] = useState(null); // null | "server" | "offline"
   useEffect(() => {
@@ -1050,6 +1155,19 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     const t = setTimeout(() => setAbsenceToast(null), 4000);
     return () => clearTimeout(t);
   }, [absenceToast]);
+
+  const [basketsBySchool, setBasketsBySchool] = useState({});
+  const basketCount = basketsBySchool[selectedChild.school] || 0;
+  const [basketToast, setBasketToast] = useState(null); // null | { title, child }
+  const [basketToastFading, setBasketToastFading] = useState(false);
+  useEffect(() => {
+    if (!basketToast) return;
+    const t = setTimeout(() => {
+      setBasketToastFading(true);
+      setTimeout(() => { setBasketToast(null); setBasketToastFading(false); }, 400);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [basketToast]);
 
   // Date conversion helpers for DatePicker (works in local time, avoids UTC offset issues)
   const dateFromStr = (s) => { if (!s) return undefined; const [y, m, d] = s.split('-'); return new Date(+y, +m - 1, +d); };
@@ -1110,6 +1228,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     setAbsenceErrorSim("none");
     setAbsenceSending(false);
     setShowAbsenceCancelSheet(false);
+    setAbsenceDatePickerActive(null);
+    setAbsenceTimePickerActive(null);
     setAbsenceOtherExpanded(false);
     setAbsenceToast(null);
   };
@@ -1158,7 +1278,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const inboxMessageIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const unreadCount = inboxMessageIds.filter(id => !readMessages.has(id)).length;
 
-  const mealsBalance = 13.50 + mealsTopUpAmount;
+  const mealsBalance = 3.50 + mealsTopUpAmount;
   const baseWraparoundBalance = 80.0;
   const wraparoundBalance = baseWraparoundBalance + toppedUpAmount;
   const lowFundsThreshold = 5.0;
@@ -1198,7 +1318,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "mon-jun16", label: "Mon 16 Jun",   active: true },
         { id: "mon-jun23", label: "Mon 23 Jun",   active: true },
       ],
-      blockSessions: 10, blockPrice: 110, isFree: false,
+      blockSessions: 10, blockPrice: 110, isFree: false, termlyLabel: "Summer term 2026",
     },
     5: {
       about: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.",
@@ -1254,7 +1374,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "wed-jun24", label: "Wed 24 Jun",   active: true },
         { id: "wed-jul8",  label: "Wed 8 Jul",    active: true },
       ],
-      perSessionPrice: 6, blockSessions: 11, blockPrice: 66, isFree: false,
+      perSessionPrice: 6, blockSessions: 11, blockPrice: 66, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
     7: {
       about: "Coding Club introduces children to programming through hands-on projects using Scratch, Python, and web basics. Sessions are accessible and engaging, helping children develop logical thinking and problem-solving skills.",
@@ -1273,7 +1393,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "thu-jun25", label: "Thu 25 Jun",   active: true },
         { id: "thu-jul9",  label: "Thu 9 Jul",    active: true },
       ],
-      perSessionPrice: 7, blockSessions: 11, blockPrice: 77, isFree: false,
+      perSessionPrice: 7, blockSessions: 11, blockPrice: 77, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
     8: {
       about: "Netball Club develops key skills including passing, shooting, and positional play in a supportive team environment. Children learn the rules of the game, improve their fitness, and take part in friendly matches throughout the term.",
@@ -1292,7 +1412,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "fri-jun26", label: "Fri 26 Jun",   active: true },
         { id: "fri-jul10", label: "Fri 10 Jul",   active: true },
       ],
-      perSessionPrice: 5, blockSessions: 11, blockPrice: 55, isFree: false,
+      perSessionPrice: 5, blockSessions: 11, blockPrice: 55, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
     16: {
       about: "Chess Club is open to all abilities, from complete beginners to more experienced players. Children learn the rules and strategies of the game in a calm, focused setting — building patience, concentration, and problem-solving skills.",
@@ -1311,7 +1431,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "mon-jun22", label: "Mon 22 Jun",   active: true },
         { id: "mon-jul6",  label: "Mon 6 Jul",    active: true },
       ],
-      perSessionPrice: 0, blockSessions: 11, blockPrice: 0, isFree: true,
+      perSessionPrice: 0, blockSessions: 11, blockPrice: 0, isFree: true, dailyLabel: "Drop-in",
     },
     17: {
       about: "Dance Club explores a range of styles — from contemporary to street dance — in a high-energy, supportive environment. Children build confidence, coordination, and performance skills, working towards a routine to share with the school at the end of term.",
@@ -1330,7 +1450,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "tue-jun23", label: "Tue 23 Jun",   active: true },
         { id: "tue-jul7",  label: "Tue 7 Jul",    active: true },
       ],
-      perSessionPrice: 6, blockSessions: 11, blockPrice: 66, isFree: false,
+      perSessionPrice: 6, blockSessions: 11, blockPrice: 66, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
     18: {
       about: "School Choir is open to all voices — no audition required. Children learn songs spanning pop, folk, and classical styles, developing vocal skills and musicality in a welcoming, energetic group. The choir performs at school assemblies and end-of-term events.",
@@ -1349,7 +1469,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "tue-jun23", label: "Tue 23 Jun",   active: true },
         { id: "tue-jul7",  label: "Tue 7 Jul",    active: true },
       ],
-      perSessionPrice: 0, blockSessions: 11, blockPrice: 0, isFree: true,
+      perSessionPrice: 0, blockSessions: 11, blockPrice: 0, isFree: true, termlyLabel: "Summer term 2026",
     },
     20: {
       about: "Gymnastics Club builds strength, flexibility, and coordination through structured sessions led by qualified coaches. Children progress through floor work, vaulting, and balances, developing body awareness and confidence at their own pace.",
@@ -1368,38 +1488,38 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "fri-jun26", label: "Fri 26 Jun",   active: true },
         { id: "fri-jul10", label: "Fri 10 Jul",   active: true },
       ],
-      perSessionPrice: 9, blockSessions: 11, blockPrice: 99, isFree: false,
+      perSessionPrice: 9, blockSessions: 11, blockPrice: 99, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
     21: {
       about: "Drama Club is a space for children to build confidence, creativity, and teamwork through performance. Sessions cover improvisation, character work, and scripted scenes — all building towards a short performance at the end of term.",
       bullets: ["No experience needed", "Runs on Mondays and Thursdays", "End-of-term performance for parents"],
       sessionDates: [
-        { id: "mon-apr13", label: "Mon 13 Apr",  active: true },
+        { id: "mon-apr13", label: "Mon 13 Apr",  active: true,  weekLabel: "Mon 13 – Fri 17 Apr" },
         { id: "thu-apr16", label: "Thu 16 Apr",  active: true },
-        { id: "mon-apr20", label: "Mon 20 Apr",  active: true },
+        { id: "mon-apr20", label: "Mon 20 Apr",  active: true,  weekLabel: "Mon 20 – Fri 24 Apr" },
         { id: "thu-apr23", label: "Thu 23 Apr",  active: true },
-        { id: "mon-apr27", label: "Mon 27 Apr",  active: true },
+        { id: "mon-apr27", label: "Mon 27 Apr",  active: true,  weekLabel: "Mon 27 Apr – Fri 1 May" },
         { id: "thu-apr30", label: "Thu 30 Apr",  active: true },
-        { id: "mon-may4",  label: "Mon 4 May",     active: true },
+        { id: "mon-may4",  label: "Mon 4 May",     active: true,  weekLabel: "Mon 4 – Fri 8 May" },
         { id: "thu-may7",  label: "Thu 7 May",     active: true },
-        { id: "mon-may11", label: "Mon 11 May",    active: true },
+        { id: "mon-may11", label: "Mon 11 May",    active: true,  weekLabel: "Mon 11 – Fri 15 May" },
         { id: "thu-may14", label: "Thu 14 May",    active: true },
-        { id: "mon-may18", label: "Mon 18 May",    active: true },
+        { id: "mon-may18", label: "Mon 18 May",    active: true,  weekLabel: "Mon 18 – Fri 22 May" },
         { id: "thu-may21", label: "Thu 21 May",    active: true },
-        { id: "mon-may25", label: "Mon 25 May",    active: false, note: "Half term" },
+        { id: "mon-may25", label: "Mon 25 May",    active: false, note: "Half term", weekLabel: "Mon 25 – Fri 29 May" },
         { id: "thu-may28", label: "Thu 28 May",    active: false, note: "Half term" },
-        { id: "mon-jun1",  label: "Mon 1 Jun",    active: true },
+        { id: "mon-jun1",  label: "Mon 1 Jun",    active: true,  weekLabel: "Mon 1 – Fri 5 Jun" },
         { id: "thu-jun4",  label: "Thu 4 Jun",    active: true },
-        { id: "mon-jun8",  label: "Mon 8 Jun",    active: true },
+        { id: "mon-jun8",  label: "Mon 8 Jun",    active: true,  weekLabel: "Mon 8 – Fri 12 Jun" },
         { id: "thu-jun11", label: "Thu 11 Jun",   active: true },
-        { id: "mon-jun15", label: "Mon 15 Jun",   active: true },
+        { id: "mon-jun15", label: "Mon 15 Jun",   active: true,  weekLabel: "Mon 15 – Fri 19 Jun" },
         { id: "thu-jun18", label: "Thu 18 Jun",   active: true },
-        { id: "mon-jun22", label: "Mon 22 Jun",   active: true },
+        { id: "mon-jun22", label: "Mon 22 Jun",   active: true,  weekLabel: "Mon 22 – Fri 26 Jun" },
         { id: "thu-jun25", label: "Thu 25 Jun",   active: true },
-        { id: "mon-jul6",  label: "Mon 6 Jul",    active: true },
+        { id: "mon-jul6",  label: "Mon 6 Jul",    active: true,  weekLabel: "Mon 6 – Fri 10 Jul" },
         { id: "thu-jul9",  label: "Thu 9 Jul",    active: true },
       ],
-      perSessionPrice: 8, blockSessions: 22, blockPrice: 176, isFree: false,
+      perSessionPrice: 8, blockSessions: 22, blockPrice: 176, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
     19: {
       about: "Book Club meets every Wednesday lunchtime in the library. Children read and discuss a shared book together, with a new title chosen each half term. All reading abilities are welcome — the focus is on enjoying stories and sharing opinions.",
@@ -1417,7 +1537,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "wed-jun17", label: "Wed 17 Jun",   active: true },
         { id: "wed-jun24", label: "Wed 24 Jun",   active: true },
       ],
-      perSessionPrice: 0, blockSessions: 11, blockPrice: 0, isFree: true,
+      perSessionPrice: 0, blockSessions: 11, blockPrice: 0, isFree: true, dailyLabel: "Drop-in",
     },
   };
 
@@ -1477,12 +1597,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           const minDaily   = cDailyPds.length  ? Math.min(...cDailyPds.map(p => p.price))  : null;
           const minTermly  = cTermlyPds.length ? Math.min(...cTermlyPds.map(p => p.price)) : null;
           const allDates   = extras.sessionDates || [];
-          const pastDatesC = allDates.filter(d => d.past);
-          const activeSess = allDates.filter(d => !d.past && d.active !== false);
-          const effectiveBlockPrice = pastDatesC.length > 0 && extras.blockSessions > 0
-            ? Math.round(extras.blockPrice / extras.blockSessions * activeSess.length)
-            : extras.blockPrice;
-          const sessionCountLabel = pastDatesC.length > 0 ? activeSess.length : extras.blockSessions;
+          const upcomingDates = allDates.filter(d => !d.past && d.active !== false);
           const priceHint  = extras.isFree ? "Free" : minDaily !== null
             ? (clubPeriods.length > 1 ? `From ${fmtPrice(minDaily)}` : fmtPrice(minDaily)) + " per session"
             : (clubPeriods.length > 1 ? `From ${fmtPrice(extras.blockPrice)}` : fmtPrice(extras.blockPrice)) + ` for ${extras.blockSessions} sessions`;
@@ -1504,91 +1619,66 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             const eRect = el.getBoundingClientRect();
             if (eRect.bottom > cRect.bottom - 88) container.scrollTop += (eRect.bottom - cRect.bottom) + 88 + 8;
           });
-          const renderRowC = (period, showDivider) => {
-            const isSelected = selectedBkPeriod?.id === period.id;
-            const isTermly = period.type === "termly";
-            const { primary, secondary } = getContentC(period);
-            return (
-              <button key={period.id} onClick={(e) => { setSelectedBkPeriod(period); setBookingOption(isTermly ? "term" : "individual"); scrollAfterRenderC(e.currentTarget); }}
-                style={{ display: "flex", alignItems: "center", width: "100%", padding: "10px 0", background: "none", border: "none", borderTop: showDivider ? "1px solid var(--color-grey-100)" : "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left", gap: 12 }}>
-                <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)" }}>{primary}</div>
-                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 1 }}>{secondary}</div>
-                </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontSize: "var(--font-size-5)", fontWeight: 600, color: "var(--color-text-primary)" }}>{fmtPrice(isTermly && pastDatesC.length > 0 && extras.blockSessions > 0 ? Math.round(period.price / extras.blockSessions * activeSess.length) : period.price)}</div>
-                </div>
-              </button>
-            );
-          };
+
           const monthOrder   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          const ctaLabel     = effectivePeriod?.type === "daily" ? "Choose sessions" : "Book now";
+          const termlyTotal  = effectivePeriod?.price ?? extras.blockPrice ?? 0;
+          const ctaLabel     = effectivePeriod?.type === "daily" ? "Choose sessions" : extras.isFree ? "Confirm booking" : `Pay now · £${termlyTotal.toFixed(2)}`;
           const onCta        = () => {
             if (!effectivePeriod) return;
             if (!selectedBkPeriod) { setSelectedBkPeriod(effectivePeriod); setBookingOption(effectivePeriod.type === "termly" ? "term" : "individual"); }
             if (effectivePeriod.type === "daily") { setFlowStep("choose-dates"); setSelectedDates({}); setClubDatesError(false); }
-            else { setFlowStep("payment"); setReviewDatesExpanded(false); setPaymentMethod("card"); setCardFilled(false); }
+            else if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }
+            else { setPaymentMethod("card"); setCardFilled(false); setShowStripeSheet(true); }
           };
           return (
-          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-white)" }}>
-            <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-grey-050)", position: "relative" }}>
+            <div style={{ height: isMobile ? 20 : 50, background: "var(--color-grey-050)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
               <div style={{ width: 120, height: 28, background: "#222", borderRadius: 14, display: isMobile ? "none" : "block" }} />
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 12px", flexShrink: 0, boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px 0", flexShrink: 0 }}>
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); setDetailDatesExpanded(false); setSelectedBkPeriod(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
-              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Club details</span>
-              <button onClick={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); setDetailDatesExpanded(false); setSelectedBkPeriod(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              <button onClick={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); setDetailDatesExpanded(false); setSelectedBkPeriod(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4L16 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M16 4L4 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
               </button>
             </div>
-            <div ref={bkDetailRef} style={{ flex: 1, overflowY: "auto", background: "var(--color-grey-050)" }}>
-              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {/* Card 1: Details */}
-                <div style={{ background: "var(--color-white)", borderRadius: 12, padding: "20px 16px 0", border: "1px solid var(--color-grey-100)" }}>
-                  <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>{selectedClub.title}</h2>
-                  <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: "0 0 12px" }}>For {selectedChild.name}</p>
-                  <div style={{ height: 1, background: "var(--color-grey-100)", marginBottom: 14 }} />
-                  {(() => {
-                    const parts = getClubScheduleDetailParts(selectedClub, extras);
-                    if (parts.multiDay) {
-                      return (
-                        <div style={{ marginBottom: 0 }}>
-                          <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{parts.days}</p>
-                          <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: "1px 0 0" }}>{parts.times}</p>
-                        </div>
-                      );
-                    }
-                    return <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{parts.label}</p>;
-                  })()}
-                  <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: "3px 0 8px" }}>{priceHint}</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
-                    {selectedClub.location && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <MapPin size={14} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{selectedClub.location}</span>
-                      </div>
-                    )}
-                    {selectedClub.clubLead && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Users size={14} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{selectedClub.clubLead}</span>
-                      </div>
-                    )}
+            <div ref={bkDetailRef} style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+              <div style={{ background: "var(--color-white)", borderRadius: 8, margin: "8px 16px 0", border: "1px solid var(--color-grey-100)", paddingBottom: 24 }}>
+                <div style={{ padding: "20px 16px 0" }}>
+                  {/* Group 1: Title */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
+                    <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: 0, lineHeight: 1.2, fontFamily: "'Inter', sans-serif", flex: "1 1 auto", minWidth: 0 }}>{selectedClub.title}</h2>
+                    {(() => {
+                      const browseToday = new Date(2026, 3, 10);
+                      const daysUntil = selectedClub.deadline ? Math.ceil((selectedClub.deadline - browseToday) / (1000 * 60 * 60 * 24)) : Infinity;
+                      const isUrgent = daysUntil <= 7 && selectedClub.places !== null && selectedClub.places <= 15;
+                      return isUrgent && selectedClub.deadlineLabel ? <div style={{ flexShrink: 0 }}><Tag variant="default">Closes {selectedClub.deadlineLabel}</Tag></div> : null;
+                    })()}
                   </div>
-                  <div style={{ height: 1, background: "var(--color-grey-100)" }} />
-                  <div style={{ padding: "16px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)" }}>
-                        {pastDatesC.length > 0 ? `${activeSess.length} sessions remaining` : `${extras.blockSessions} sessions`}
-                      </span>
-                      <button onClick={() => { setDetailDatesExpanded(!detailDatesExpanded); setPastSessionsCollapsed(true); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
-                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2 }}>View dates</span>
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: detailDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.2 }}>For {selectedChild.name}</p>
+                  <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
+                  {/* Group 2: Schedule */}
+                  <div style={{ marginTop: 0 }}>
+                    <div style={{ marginBottom: 12 }}>
+                      {(() => {
+                        const parts = getClubScheduleDetailParts(selectedClub, extras);
+                        if (parts.multiDay) {
+                          return (
+                            <>
+                              {parts.pairs.map((p, i) => (
+                                <p key={i} style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: i === 0 ? 0 : "6px 0 0" }}>{p.label}</p>
+                              ))}
+                            </>
+                          );
+                        }
+                        return <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{parts.label}</p>;
+                      })()}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, marginTop: 0, marginBottom: 0 }}>
+                      <button onClick={() => setDetailDatesExpanded(!detailDatesExpanded)} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, display: "flex", alignItems: "center", gap: 2 }}>
+                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500 }}>View all dates</span>
+                        <ChevronDown size={14} color="var(--color-brand-600)" strokeWidth={2} style={{ transform: detailDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
                       </button>
                     </div>
                     {detailDatesExpanded && (() => {
@@ -1602,36 +1692,13 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       });
                       const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                       return (
-                        <div style={{ marginTop: 28 }}>
-                          {pastDatesC.length > 0 && (
-                            <div style={{ marginBottom: 16 }}>
-                              <button onClick={() => setPastSessionsCollapsed(!pastSessionsCollapsed)}
-                                style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, marginBottom: pastSessionsCollapsed ? 0 : 8 }}>
-                                <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-600)" }}>
-                                  {pastSessionsCollapsed ? `Show ${pastDatesC.length} past session${pastDatesC.length !== 1 ? "s" : ""}` : "Hide past sessions"}
-                                </span>
-                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: pastSessionsCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.2s" }}>
-                                  <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-grey-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                              </button>
-                              {!pastSessionsCollapsed && pastDatesC.map(d => {
-                                const parts = d.label.split(" ");
-                                const dayDisplay = parts.slice(0, -1).join(" ");
-                                return (
-                                  <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
-                                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-600)", textDecoration: "line-through" }}>{dayDisplay}</span>
-                                    <Tag variant="neutral">Past</Tag>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                        <div style={{ marginTop: 12, textAlign: "left" }}>
                           {sortedMonths.map((month, mi) => (
                             <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
-                              <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
+                              <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 12 }}>{month} 2026</div>
                               {groups[month].map(d => (
                                 <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
-                                  <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.dayDisplay}</span>
+                                  <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.dayDisplay}</span>
                                   {d.active !== false
                                     ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{d.time || `${clubPeriods[0].start}–${clubPeriods[0].end}`}</span>
                                     : d.note && <Tag variant="neutral">{d.note}</Tag>}
@@ -1643,92 +1710,229 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       );
                     })()}
                   </div>
-                </div>
-                {/* Card 2: About */}
-                <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "16px" }}>
-                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 8 }}>About this club</div>
-                  <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: 1.6, margin: "0 0 6px",
-                    ...(bkAboutExpanded ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" })
-                  }}>{extras.about}</p>
-                  {bkAboutExpanded && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
-                      {extras.bullets.map((pt, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                          <span style={{ color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", lineHeight: "1.5" }}>•</span>
-                          <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: "1.5" }}>{pt}</span>
-                        </div>
-                      ))}
+                  {(selectedClub.location || selectedClub.clubLead) && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
+                      {selectedClub.location && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                          <MapPin size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                          {selectedClub.location}
+                        </span>
+                      )}
+                      {selectedClub.clubLead && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                          <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                          {selectedClub.clubLead}
+                        </span>
+                      )}
                     </div>
                   )}
-                  <button onClick={() => setBkAboutExpanded(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2, fontFamily: "inherit" }}>
-                    {bkAboutExpanded ? "Read less" : "Read more"}
-                  </button>
-                </div>
-                {/* Card 3: Booking options */}
-                {(() => {
-                  const getCardTitle = (period) => {
-                    if (clubTimesVary && clubDaysVary) return `${expandDay(period.days)} · ${period.start}–${period.end}`;
-                    if (clubTimesVary) return `${period.start}–${period.end}`;
-                    if (clubDaysVary)  return expandDay(period.days);
-                    return period.type === "daily" ? "Individual sessions" : "Block booking";
-                  };
-                  const getCardSubtitle = (period) => {
-                    if (clubPeriods.length <= 1 || (!clubTimesVary && !clubDaysVary)) return null;
-                    return period.type === "daily" ? "Individual sessions" : "Block booking";
-                  };
-                  const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-                  const dayOrder = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
-                  const sortedPeriods = [...clubPeriods].sort((a, b) => {
-                    const dA = dayOrder[a.dayKey] ?? 99;
-                    const dB = dayOrder[b.dayKey] ?? 99;
-                    if (dA !== dB) return dA - dB;
-                    if (a.start !== b.start) return toMin(a.start) - toMin(b.start);
-                    return a.type === "daily" ? -1 : 1;
-                  });
-                  return (
-                    <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "14px 16px" }}>
-                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 10 }}>Booking options</div>
-                      <div style={{ height: 1, background: "var(--color-grey-100)", marginBottom: 0 }} />
-                      {sortedPeriods.map((period, i) => {
-                        const isSelected = effectivePeriod?.id === period.id;
-                        const isTermly = period.type === "termly";
-                        const price = fmtPrice(isTermly && pastDatesC.length > 0 && extras.blockSessions > 0
-                          ? Math.round(period.price / extras.blockSessions * activeSess.length)
-                          : period.price);
-                        const subtitle = getCardSubtitle(period);
+                  {!bkAboutExpanded ? (
+                    <>
+                      <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: 1.6, margin: "24px 0 0", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{extras.about}</p>
+                      <button onClick={() => setBkAboutExpanded(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 0 0", fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500, fontFamily: "inherit", display: "block" }}>Read more</button>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: 1.6, margin: extras.bullets?.length ? "24px 0 6px" : "24px 0 0" }}>
+                        {extras.about}
+                        {!extras.bullets?.length && <>{" "}<button onClick={() => setBkAboutExpanded(false)} style={{ display: "inline", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500, fontFamily: "inherit" }}>Read less</button></>}
+                      </p>
+                      {extras.bullets?.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {extras.bullets.map((pt, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                              <span style={{ color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", lineHeight: "1.5" }}>•</span>
+                              <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: "1.5" }}>
+                                {pt}{i === extras.bullets.length - 1 && <>{" "}<button onClick={() => setBkAboutExpanded(false)} style={{ display: "inline", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500, fontFamily: "inherit" }}>Read less</button></>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {/* Group 3: Booking */}
+                  <div style={{ marginTop: 24 }}>
+                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 12 }}>Booking options</div>
+                  {(() => {
+                    const getCardTitle = (period) => period.type === "termly" ? "Full term" : "Individual sessions";
+                    const getSchoolName = (period) => period.label || (period.type === "termly" ? (extras.termlyLabel || null) : null);
+                    const getSessionCount = (period) => period.type === "termly" ? (period.sessionsRemaining ?? extras.blockSessions ?? null) : null;
+                    const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+                    const bkDayOrder = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+                    const sortedPeriods = [...clubPeriods].sort((a, b) => {
+                      const dA = bkDayOrder[a.dayKey] ?? 99;
+                      const dB = bkDayOrder[b.dayKey] ?? 99;
+                      if (dA !== dB) return dA - dB;
+                      if (a.start !== b.start) return toMin(a.start) - toMin(b.start);
+                      return a.type === "daily" ? -1 : 1;
+                    });
+                    if (sortedPeriods.length === 1) {
+                      const period = sortedPeriods[0];
+                      const isTermly = period.type === "termly";
+                      const price = fmtPrice(period.price);
+                      if (isTermly) {
+                        const schoolName = getSchoolName(period);
+                        const sessionCount = getSessionCount(period);
                         return (
-                          <button key={period.id}
-                            onClick={(e) => { setSelectedBkPeriod(period); setBookingOption(isTermly ? "term" : "individual"); scrollAfterRenderC(e.currentTarget); }}
-                            style={{ display: "flex", alignItems: "center", width: "100%", padding: "10px 0", background: "none", border: "none", borderTop: i > 0 ? "1px solid var(--color-grey-100)" : "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left", gap: 12 }}>
-                            <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
+                          <div key={period.id} style={{ background: "var(--color-brand-050)", border: "1px solid var(--color-brand-100)", borderRadius: 8, padding: "14px 16px", position: "relative" }}>
+                            <div style={{ position: "absolute", top: 14, left: 16, width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{getCardTitle(period)}</div>
-                              {subtitle && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{subtitle}</div>}
+                            <div style={{ paddingLeft: 32 }}>
+                              <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Full term</div>
+                              {schoolName && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{schoolName}</div>}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
+                                <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{sessionCount ? `${sessionCount} sessions` : ""}</span>
+                                <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
+                                  <span style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)" }}>{price}</span>
+                                  {!extras.isFree && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>total</span>}
+                                </div>
+                              </div>
                             </div>
-                            <div style={{ textAlign: "right", flexShrink: 0 }}>
-                              <div style={{ fontSize: "var(--font-size-5)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.2 }}>{price}</div>
-                              {!extras.isFree && !isTermly && <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginTop: 1 }}>per session</div>}
-                              {isTermly && <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginTop: 1 }}>{pastDatesC.length > 0 ? `${activeSess.length} sessions` : `${extras.blockSessions} sessions`}</div>}
-                            </div>
-                          </button>
+                          </div>
                         );
-                      })}
-                    </div>
-                  );
-                })()}
+                      }
+                      return (
+                        <div key={period.id} style={{ background: "var(--color-brand-050)", border: "1px solid var(--color-brand-100)", borderRadius: 8, padding: "14px 16px", position: "relative" }}>
+                          <div style={{ position: "absolute", top: 14, left: 16, width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />
+                          </div>
+                          <div style={{ paddingLeft: 32 }}>
+                            <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Individual sessions</div>
+                            {period.label && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{period.label}</div>}
+                            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "baseline", marginTop: 4 }}>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
+                                <span style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)" }}>{price}</span>
+                                {!extras.isFree && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>each</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {sortedPeriods.map((period) => {
+                          const isSelected = effectivePeriod?.id === period.id;
+                          const isTermly = period.type === "termly";
+                          const price = fmtPrice(period.price);
+                          const schoolName = getSchoolName(period);
+                          const sessionCount = getSessionCount(period);
+                          return (
+                            <button key={period.id}
+                              onClick={(e) => { setSelectedBkPeriod(period); setBookingOption(isTermly ? "term" : "individual"); scrollAfterRenderC(e.currentTarget); }}
+                              style={{ display: "block", width: "100%", padding: "14px 16px", background: isSelected ? "var(--color-brand-050)" : "var(--color-white)", border: isSelected ? "1px solid var(--color-brand-100)" : "1px solid var(--color-grey-100)", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", position: "relative" }}>
+                              <div style={{ position: "absolute", top: 14, left: 16, width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
+                              </div>
+                              <div style={{ paddingLeft: 32 }}>
+                                <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{getCardTitle(period)}</div>
+                                {schoolName && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{schoolName}</div>}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
+                                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly && sessionCount ? `${sessionCount} sessions` : ""}</span>
+                                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
+                                    <span style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)" }}>{price}</span>
+                                    {!extras.isFree && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly ? "total" : "each"}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                  </div>
+                </div>
               </div>
             </div>
             {effectivePeriod && (
-              <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
-                {effectivePeriod.type === "termly" && selectedClub.deadlineLabel && (
-                  <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {selectedClub.deadlineLabel}</p>
+              <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
+                {effectivePeriod.type === "termly" && (
+                  <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
                 )}
-                <button onClick={onCta} className="btn-action"
-                  style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  {ctaLabel}
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button onClick={onCta} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{ctaLabel}</button>
+                  {effectivePeriod.type === "termly" && (
+                    <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                  )}
+                </div>
+              </div>
+            )}
+            {showStripeSheet && !extras.isFree && (
+              <div onClick={() => setShowStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 16px 8px" }}>
+                    <button onClick={() => setShowStripeSheet(false)} style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-bg-secondary)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/><path d="M10 2L2 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
+                  <div style={{ padding: "0 16px 4px" }}>
+                    <button onClick={() => { setShowStripeSheet(false); setShowApplePay(true); setTimeout(() => { setShowApplePay(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }, 4500); }} style={{ width: "100%", padding: "13px", borderRadius: 8, border: "none", background: "#000", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, fontFamily: "inherit" }}>
+                      <svg width="16" height="19" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)"/><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)"/></svg>
+                      <span>Pay</span>
+                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>Or pay using</span>
+                      <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>Saved</div>
+                    <div style={{ border: "2px solid #5469d4", borderRadius: 8, padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                        <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#eb001b", marginRight: -7, zIndex: 1 }} />
+                        <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#f79e1b" }} />
+                      </div>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1 }}>···· 7492</span>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "#5469d4" }}>View more ›</span>
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>New payment method</div>
+                    <div style={{ border: "1px solid var(--color-border-default)", borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+                      <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                        <div style={{ width: 34, height: 24, borderRadius: 4, background: "var(--color-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="13" viewBox="0 0 18 13" fill="none"><rect x="0.5" y="0.5" width="17" height="12" rx="1.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/><path d="M0.5 4H17.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/></svg>
+                        </div>
+                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1, textAlign: "left" }}>New card</span>
+                        <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1 1L7 6.5L1 12" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                    <button onClick={() => { setShowStripeSheet(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#5469d4", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
+                      <span>Pay £{termlyTotal.toFixed(2)}</span>
+                      <svg width="13" height="15" viewBox="0 0 13 15" fill="none"><path d="M2.5 6.5V4.5C2.5 2.57 4.07 1 6 1C7.93 1 9.5 2.57 9.5 4.5V6.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.3" strokeLinecap="round"/><rect x="1" y="6.5" width="11" height="8" rx="1.5" fill="rgba(255,255,255,0.9)"/><circle cx="6.5" cy="10.5" r="1.2" fill="#5469d4"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showApplePay && !extras.isFree && (
+              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 30 }}>
+                <div style={{ background: "#1c1c1e", borderRadius: "16px 16px 0 0", padding: "20px 20px 30px", color: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                    <button onClick={() => setShowApplePay(false)} style={{ background: "none", border: "none", color: "#0a84ff", fontSize: "var(--font-size-4)", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                    <svg width="16" height="20" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)" /><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)" /></svg>
+                  </div>
+                  <div style={{ textAlign: "center", marginBottom: 24 }}>
+                    <div style={{ fontSize: "var(--font-size-3)", color: "#999", marginBottom: 4 }}>ARBOR EDUCATION</div>
+                    <div style={{ fontSize: "var(--font-size-7)", fontWeight: 700, color: "#fff" }}>£{termlyTotal.toFixed(2)}</div>
+                  </div>
+                  <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                    </div>
+                    <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, border: "2px solid #555", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M20 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M14 2V8" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M9 18C9 18 11 21 14 21C17 21 19 18 19 18" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M2 8H6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M22 8H26" stroke="#999" strokeWidth="2" strokeLinecap="round" /></svg>
+                    </div>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "#999" }}>Confirm with Face ID</span>
+                  </div>
+                </div>
               </div>
             )}
             <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-bg-secondary)", flexShrink: 0, overflow: "hidden" }}>
@@ -1739,15 +1943,29 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         })()}
 
 
-        {/* Club choose dates - S1 checklist */}
+        {/* Club choose dates - S1 checklist (single weekday) or week-grouped accordion (2+ weekdays) */}
         {detailPage === "club-detail" && flowStep === "choose-dates" && selectedClub && (() => {
           const extras = clubExtras[selectedClub.id];
           const dayKey = selectedBkPeriod?.dayKey;
-          const activeDates = extras.sessionDates.filter(d => d.active !== false && !d.past && (!dayKey || d.dayKey === dayKey));
+          const filteredDates = extras.sessionDates.filter(d => !d.past && (!dayKey || d.dayKey === dayKey));
+          const activeDates = filteredDates.filter(d => d.active !== false);
           const count = Object.keys(selectedDates).length;
           const allSelected = count === activeDates.length;
+          const total = count * (extras.perSessionPrice || 0);
+          const distinctWeekdays = new Set(activeDates.map(d => d.label.split(" ")[0]));
+          const useWeekGrouping = distinctWeekdays.size >= 2;
+          const weeks = [];
+          if (useWeekGrouping) {
+            let currentWeek = null;
+            filteredDates.forEach(d => {
+              if (d.weekLabel) { currentWeek = { label: d.weekLabel, days: [d] }; weeks.push(currentWeek); }
+              else if (currentWeek) { currentWeek.days.push(d); }
+            });
+            weeks.forEach(w => { w.isHalfTerm = w.days.every(d => !d.active); });
+          }
+          const firstWeek = useWeekGrouping ? weeks.find(w => !w.isHalfTerm) : null;
           return (
-          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-bg-secondary)" }}>
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-bg-secondary)", position: "relative" }}>
             <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
               <div style={{ width: 120, height: 28, background: "#222", borderRadius: 14, display: isMobile ? "none" : "block" }} />
             </div>
@@ -1755,7 +1973,10 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <button onClick={() => { setFlowStep(null); setClubDatesError(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
-              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Choose sessions</span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{selectedClub.title}</span>
+                <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)" }}>For {selectedChild.name}</span>
+              </div>
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
               </button>
@@ -1767,65 +1988,219 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500 }}>{allSelected ? "Deselect all" : "Select all"}</span>
                 </button>
               </div>
-              {/* Dates card */}
-              <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "0 16px" }}>
-                {/* Month groups */}
-                {(() => {
-                  const mo = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                  const grps = {};
-                  extras.sessionDates.filter(d => !d.past && (!dayKey || d.dayKey === dayKey)).forEach(d => {
-                    const parts = d.label.split(" ");
-                    const month = parts[parts.length - 1];
-                    const dayDisplay = parts.slice(0, -1).join(" ");
-                    if (!grps[month]) grps[month] = [];
-                    grps[month].push({ ...d, dayDisplay });
-                  });
-                  const months = Object.keys(grps).sort((a, b) => mo.indexOf(a) - mo.indexOf(b));
-                  return months.map((month, mi) => (
-                    <div key={month} style={{ marginTop: 12, paddingBottom: mi < months.length - 1 ? 0 : 4 }}>
-                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
-                      {grps[month].map(d => {
-                        const isSelected = d.id in selectedDates;
-                        return (
-                          <button key={d.id} onClick={() => { if (!d.active) return; const next = { ...selectedDates }; if (isSelected) delete next[d.id]; else next[d.id] = true; setSelectedDates(next); setClubDatesError(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", width: "100%", background: "none", borderTop: "1px solid var(--color-grey-100)", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: d.active ? "pointer" : "default", fontFamily: "inherit", textAlign: "left" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              {d.active ? (
-                                <div style={{ width: 16, height: 16, borderRadius: 4, border: isSelected ? "1px solid var(--color-brand-600)" : "1px solid var(--color-border-strong)", background: isSelected ? "var(--color-brand-600)" : "var(--color-white)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                  {isSelected && <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M3 7L6 10L11 4" stroke="var(--color-white)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
-                                </div>
-                              ) : <div style={{ width: 16, height: 16, flexShrink: 0 }} />}
-                              <span style={{ fontSize: "var(--font-size-4)", color: d.active ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active ? "none" : "line-through" }}>{d.dayDisplay}</span>
-                            </div>
-                            {!d.active && d.note
-                              ? <Tag variant="neutral">{d.note}</Tag>
-                              : d.active && <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-tertiary)" }}>{selectedBkPeriod ? `${selectedBkPeriod.start}–${selectedBkPeriod.end}` : selectedClub.time}</span>
-                            }
+              {useWeekGrouping ? (
+                /* Week-grouped accordion — for clubs that meet on 2+ weekdays */
+                <>
+                  {weeks.map((week) => {
+                    if (week.isHalfTerm) return (
+                      <div key={week.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Calendar size={16} color="var(--color-text-tertiary)" strokeWidth={1.5} />
+                          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                            <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{week.label}</span>
+                            <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)" }}>No sessions</span>
+                          </div>
+                        </div>
+                        <span style={{ fontSize: "var(--font-size-2)", fontWeight: 500, color: "var(--color-text-secondary)", background: "var(--color-grey-100)", borderRadius: 20, padding: "3px 10px" }}>Half term</span>
+                      </div>
+                    );
+                    const isFirst = week === firstWeek;
+                    const isExpanded = isFirst || expandedWeeks.has(week.label);
+                    const weekSelCount = week.days.filter(d => d.id in selectedDates).length;
+                    if (!isExpanded) {
+                      return (
+                        <button key={week.label} onClick={() => setExpandedWeeks(prev => new Set([...prev, week.label]))}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "14px 16px", background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                          <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{week.label}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            {weekSelCount > 0 && <span style={{ fontSize: "var(--font-size-2)", fontWeight: 500, color: "var(--color-white)", background: "var(--color-brand-600)", borderRadius: 99, padding: "2px 8px" }}>{weekSelCount}</span>}
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </div>
+                        </button>
+                      );
+                    }
+                    return (
+                      <div key={week.label} style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "0 16px" }}>
+                        <div onClick={!isFirst ? () => setExpandedWeeks(prev => { const next = new Set(prev); next.delete(week.label); return next; }) : undefined}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0 8px", cursor: isFirst ? "default" : "pointer" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)" }}>{week.label}</span>
+                            <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)" }}>{selectedClub.time}</span>
+                          </div>
+                          {!isFirst && <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 10L8 6L12 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                        </div>
+                        {week.days.map((d, i) => {
+                          const isSelected = d.id in selectedDates;
+                          return (
+                            <button key={d.id} onClick={() => { if (!d.active) return; const next = { ...selectedDates }; if (isSelected) delete next[d.id]; else next[d.id] = true; setSelectedDates(next); setClubDatesError(false); }}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 0", width: "100%", background: "none", borderTop: i === 0 ? "none" : "1px solid var(--color-grey-100)", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: d.active ? "pointer" : "default", fontFamily: "inherit", textAlign: "left" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                {d.active ? (
+                                  <div style={{ width: 16, height: 16, borderRadius: 4, border: isSelected ? "1px solid var(--color-brand-600)" : "1px solid var(--color-border-strong)", background: isSelected ? "var(--color-brand-600)" : "var(--color-white)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                    {isSelected && <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M3 7L6 10L11 4" stroke="var(--color-white)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                                  </div>
+                                ) : <div style={{ width: 16, height: 16, flexShrink: 0 }} />}
+                                <span style={{ fontSize: "var(--font-size-4)", color: d.active ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active ? "none" : "line-through" }}>{d.label}</span>
+                              </div>
+                              {!d.active && d.note && <Tag variant="neutral">{d.note}</Tag>}
+                            </button>
+                          );
+                        })}
+                        {isFirst && count > 0 && (
+                          <button
+                            onClick={() => {
+                              setClubDatesError(false);
+                              const selectedDays = new Set(Object.keys(selectedDates).map(id => { const d = activeDates.find(s => s.id === id); return d ? d.label.split(" ")[0] : null; }).filter(Boolean));
+                              const next = {};
+                              activeDates.forEach(d => { if (selectedDays.has(d.label.split(" ")[0])) next[d.id] = true; });
+                              setSelectedDates(next);
+                              setExpandedWeeks(new Set(weeks.filter(w => !w.isHalfTerm).map(w => w.label)));
+                            }}
+                            style={{ width: "100%", marginTop: 6, marginBottom: 12, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: "6px 0", display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-brand-600)" }}>{(() => { const days = [...new Set(Object.keys(selectedDates).map(id => activeDates.find(s => s.id === id)?.label.split(" ")[0]).filter(Boolean))]; const dayLabel = days.length <= 1 ? days[0] : `${days.slice(0, -1).join(", ")} & ${days[days.length - 1]}`; return `Book every ${dayLabel}`; })()}</span>
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 3L7.5 6L4.5 9" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
                           </button>
-                        );
-                      })}
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-            <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
-              {count > 0 && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)" }}>{count} session{count !== 1 ? "s" : ""} selected</span>
-                  <span style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>{extras.isFree ? "Free" : `£${(count * extras.perSessionPrice).toFixed(2)}`}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                /* Dates card — month-grouped checklist (default, single-weekday clubs) */
+                <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "0 16px" }}>
+                  {(() => {
+                    const mo = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                    const grps = {};
+                    filteredDates.forEach(d => {
+                      const parts = d.label.split(" ");
+                      const month = parts[parts.length - 1];
+                      const dayDisplay = parts.slice(0, -1).join(" ");
+                      if (!grps[month]) grps[month] = [];
+                      grps[month].push({ ...d, dayDisplay });
+                    });
+                    const months = Object.keys(grps).sort((a, b) => mo.indexOf(a) - mo.indexOf(b));
+                    return months.map((month, mi) => (
+                      <div key={month} style={{ marginTop: 12, paddingBottom: mi < months.length - 1 ? 0 : 4 }}>
+                        <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
+                        {grps[month].map(d => {
+                          const isSelected = d.id in selectedDates;
+                          return (
+                            <button key={d.id} onClick={() => { if (!d.active) return; const next = { ...selectedDates }; if (isSelected) delete next[d.id]; else next[d.id] = true; setSelectedDates(next); setClubDatesError(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", width: "100%", background: "none", borderTop: "1px solid var(--color-grey-100)", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: d.active ? "pointer" : "default", fontFamily: "inherit", textAlign: "left" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                {d.active ? (
+                                  <div style={{ width: 16, height: 16, borderRadius: 4, border: isSelected ? "1px solid var(--color-brand-600)" : "1px solid var(--color-border-strong)", background: isSelected ? "var(--color-brand-600)" : "var(--color-white)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                    {isSelected && <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M3 7L6 10L11 4" stroke="var(--color-white)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                                  </div>
+                                ) : <div style={{ width: 16, height: 16, flexShrink: 0 }} />}
+                                <span style={{ fontSize: "var(--font-size-4)", color: d.active ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active ? "none" : "line-through" }}>{d.dayDisplay}</span>
+                              </div>
+                              {!d.active && d.note
+                                ? <Tag variant="neutral">{d.note}</Tag>
+                                : d.active && <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-tertiary)" }}>{selectedBkPeriod ? `${selectedBkPeriod.start}–${selectedBkPeriod.end}` : selectedClub.time}</span>
+                              }
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ));
+                  })()}
                 </div>
               )}
+            </div>
+            <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
               {clubDatesError && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}><circle cx="7" cy="7" r="6" stroke="var(--color-text-destructive)" strokeWidth="1.3" /><path d="M7 4V7.5" stroke="var(--color-text-destructive)" strokeWidth="1.3" strokeLinecap="round" /><circle cx="7" cy="10" r="0.8" fill="var(--color-text-destructive)" /></svg>
                   <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Please select at least one session to continue.</span>
                 </div>
               )}
+              {count > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-700)" }}>{count} session{count !== 1 ? "s" : ""} selected</span>
+                  <span style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>{extras.isFree ? "Free" : `£${total.toFixed(2)}`}</span>
+                </div>
+              )}
+              <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setFlowStep("payment"); setReviewDatesExpanded(false); setPaymentMethod("card"); setCardFilled(false); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{`Book for ${selectedChild.name}`}</button>
-                <button className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); } else { setShowStripeSheet(true); } }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{extras.isFree ? "Confirm booking" : (count > 0 ? `Pay now · £${total.toFixed(2)}` : "Pay now")}</button>
+                <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
               </div>
             </div>
+            {showStripeSheet && !extras.isFree && (
+              <div onClick={() => setShowStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 16px 8px" }}>
+                    <button onClick={() => setShowStripeSheet(false)} style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-bg-secondary)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/><path d="M10 2L2 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
+                  <div style={{ padding: "0 16px 4px" }}>
+                    <button onClick={() => { setShowStripeSheet(false); setShowApplePay(true); setTimeout(() => { setShowApplePay(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }, 4500); }} style={{ width: "100%", padding: "13px", borderRadius: 8, border: "none", background: "#000", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, fontFamily: "inherit" }}>
+                      <svg width="16" height="19" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)"/><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)"/></svg>
+                      <span>Pay</span>
+                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>Or pay using</span>
+                      <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>Saved</div>
+                    <div style={{ border: "2px solid #5469d4", borderRadius: 8, padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                        <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#eb001b", marginRight: -7, zIndex: 1 }} />
+                        <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#f79e1b" }} />
+                      </div>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1 }}>···· 7492</span>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "#5469d4" }}>View more ›</span>
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>New payment method</div>
+                    <div style={{ border: "1px solid var(--color-border-default)", borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+                      <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                        <div style={{ width: 34, height: 24, borderRadius: 4, background: "var(--color-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="13" viewBox="0 0 18 13" fill="none"><rect x="0.5" y="0.5" width="17" height="12" rx="1.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/><path d="M0.5 4H17.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/></svg>
+                        </div>
+                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1, textAlign: "left" }}>New card</span>
+                        <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1 1L7 6.5L1 12" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                    <button onClick={() => { setShowStripeSheet(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#5469d4", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
+                      <span>Pay £{total.toFixed(2)}</span>
+                      <svg width="13" height="15" viewBox="0 0 13 15" fill="none"><path d="M2.5 6.5V4.5C2.5 2.57 4.07 1 6 1C7.93 1 9.5 2.57 9.5 4.5V6.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.3" strokeLinecap="round"/><rect x="1" y="6.5" width="11" height="8" rx="1.5" fill="rgba(255,255,255,0.9)"/><circle cx="6.5" cy="10.5" r="1.2" fill="#5469d4"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showApplePay && !extras.isFree && (
+              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 30 }}>
+                <div style={{ background: "#1c1c1e", borderRadius: "16px 16px 0 0", padding: "20px 20px 30px", color: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                    <button onClick={() => setShowApplePay(false)} style={{ background: "none", border: "none", color: "#0a84ff", fontSize: "var(--font-size-4)", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                    <svg width="16" height="20" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)" /><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)" /></svg>
+                  </div>
+                  <div style={{ textAlign: "center", marginBottom: 24 }}>
+                    <div style={{ fontSize: "var(--font-size-3)", color: "#999", marginBottom: 4 }}>ARBOR EDUCATION</div>
+                    <div style={{ fontSize: "var(--font-size-7)", fontWeight: 700, color: "#fff" }}>£{total.toFixed(2)}</div>
+                  </div>
+                  <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                    </div>
+                    <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, border: "2px solid #555", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M20 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M14 2V8" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M9 18C9 18 11 21 14 21C17 21 19 18 19 18" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M2 8H6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M22 8H26" stroke="#999" strokeWidth="2" strokeLinecap="round" /></svg>
+                    </div>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "#999" }}>Confirm with Face ID</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
               <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
             </div>
@@ -1840,12 +2215,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           const count = Object.keys(selectedDates).length;
           const payDayKey = selectedBkPeriod?.dayKey;
           const sessionCount = isTerm ? extras.sessionDates.filter(d => !d.past && d.active !== false && (!payDayKey || d.dayKey === payDayKey)).length : count;
-          const payPastCount = (extras.sessionDates || []).filter(d => d.past).length;
-          const payActiveCount = (extras.sessionDates || []).filter(d => !d.past && d.active !== false).length;
-          const effectiveBlockPrice = payPastCount > 0 && extras.blockSessions > 0
-            ? Math.round((selectedBkPeriod?.price ?? extras.blockPrice) / extras.blockSessions * payActiveCount)
-            : (selectedBkPeriod?.price ?? extras.blockPrice);
-          const total = isTerm ? effectiveBlockPrice : count * extras.perSessionPrice;
+          const total = isTerm ? (selectedBkPeriod?.price ?? extras.blockPrice) : count * extras.perSessionPrice;
           const dateLabels = Object.fromEntries(extras.sessionDates.map(d => [d.id, d.label]));
           const selectedDayAbbrevs = [...new Set(Object.keys(selectedDates).map(id => dateLabels[id]?.split(" ")[0]).filter(Boolean))];
           const dayFullNames = { Mon: "Mondays", Tue: "Tuesdays", Wed: "Wednesdays", Thu: "Thursdays", Fri: "Fridays" };
@@ -1869,23 +2239,23 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             </div>
             <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", background: "var(--color-bg-secondary)" }}>
               <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "16px", marginBottom: 20 }}>
-                <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>{selectedClub.title}</h2>
-                <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0 }}>For {selectedChild.name}</p>
+                <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.2, fontFamily: "'Inter', sans-serif" }}>{selectedClub.title}</h2>
+                <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.2 }}>For {selectedChild.name}</p>
                 <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
                 <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{sessionCount === 1 ? `${isTerm ? extras.sessionDates.filter(d => !d.past && d.active !== false && (!payDayKey || d.dayKey === payDayKey))[0]?.label : dateLabels[Object.keys(selectedDates)[0]]} · ${selectedClub.time}` : isSingleDay ? `${dayFullNames[singleDayAbbrev] ?? singleDayAbbrev} · ${selectedClub.time}` : isTerm ? `Every ${selectedClub.days} · ${selectedClub.time}` : selectedClub.time}</p>
                 {(selectedClub.location || selectedClub.clubLead) && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
                     {selectedClub.location && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <MapPin size={14} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{selectedClub.location}</span>
-                      </div>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                        <MapPin size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                        {selectedClub.location}
+                      </span>
                     )}
                     {selectedClub.clubLead && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Users size={14} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{selectedClub.clubLead}</span>
-                      </div>
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                        <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                        {selectedClub.clubLead}
+                      </span>
                     )}
                   </div>
                 )}
@@ -1918,7 +2288,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                               <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
                               {groups[month].map(d => (
                                 <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
-                                  <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.dayDisplay}</span>
+                                  <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.dayDisplay}</span>
                                   {d.active !== false
                                     ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{selectedClub.time}</span>
                                     : d.note && <Tag variant="neutral">{d.note}</Tag>
@@ -1941,13 +2311,16 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               </div>
             </div>
             <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
-              <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you agree to the school's <span style={{ textDecoration: "underline", cursor: "pointer" }}>terms and conditions</span> for this activity</div>
-              <button onClick={() => {
-                if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }
-                else { setShowStripeSheet(true); }
-              }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                {extras.isFree ? "Confirm booking" : `Pay now · £${total.toFixed(2)}`}
-              </button>
+              <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button onClick={() => {
+                  if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }
+                  else { setShowStripeSheet(true); }
+                }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  {extras.isFree ? "Confirm booking" : `Pay now · £${total.toFixed(2)}`}
+                </button>
+                <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+              </div>
             </div>
             {showStripeSheet && !extras.isFree && (
               <div onClick={() => setShowStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
@@ -2038,12 +2411,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           const count = Object.keys(selectedDates).length;
           const confDayKey = selectedBkPeriod?.dayKey;
           const sessionCount = isTerm ? extras.sessionDates.filter(d => !d.past && d.active !== false && (!confDayKey || d.dayKey === confDayKey)).length : count;
-          const confPastCount = (extras.sessionDates || []).filter(d => d.past).length;
-          const confActiveCount = (extras.sessionDates || []).filter(d => !d.past && d.active !== false).length;
-          const effectiveBlockPrice = confPastCount > 0 && extras.blockSessions > 0
-            ? Math.round((selectedBkPeriod?.price ?? extras.blockPrice) / extras.blockSessions * confActiveCount)
-            : (selectedBkPeriod?.price ?? extras.blockPrice);
-          const total = isTerm ? effectiveBlockPrice : count * extras.perSessionPrice;
+          const total = isTerm ? (selectedBkPeriod?.price ?? extras.blockPrice) : count * extras.perSessionPrice;
           const dateLabels = Object.fromEntries(extras.sessionDates.map(d => [d.id, d.label]));
           const confDates = isTerm
             ? extras.sessionDates.filter(d => !d.past).map(d => ({ ...d, time: selectedClub.time }))
@@ -2067,6 +2435,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               setConfirmedDatesExpanded={setConfirmedDatesExpanded}
               bookingNudgeRating={bookingNudgeRating}
               setBookingNudgeRating={setBookingNudgeRating}
+              newLayout={true}
             />
           );
         })()}
@@ -2083,7 +2452,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setDetailDatesExpanded(false); setBookingOption(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
-              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Club details</span>
+              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Wraparound details</span>
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setDetailDatesExpanded(false); setBookingOption(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
               </button>
@@ -2150,7 +2519,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 </div>
                 {/* Card 2: About */}
                 <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "16px" }}>
-                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 8 }}>About this club</div>
+                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>About this club</div>
                   <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: 1.6, margin: "0 0 6px",
                     ...(bkAboutExpanded ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" })
                   }}>Our {wraparoundClubConfig?.name} provides a safe and fun environment for children to relax, play and socialise after the school day. Activities include arts and crafts, outdoor games, board games and supervised homework time. A light snack and drink are provided.</p>
@@ -2169,12 +2538,12 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   </button>
                 </div>
                 {/* Card 3: Booking options */}
-                <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "14px 16px" }}>
-                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 10 }}>Booking options</div>
+                <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "14px 16px 4px" }}>
+                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 10 }}>Booking details</div>
                   <div style={{ height: 1, background: "var(--color-grey-100)" }} />
                   {[
                     { id: "individual", label: "Individual sessions", subtitle: null, price: "£10", priceNote: "per session" },
-                    { id: "term", label: "Block booking", subtitle: null, price: "£120", priceNote: "12 sessions" }
+                    { id: "term", label: "Summer term", subtitle: null, price: "£120", priceNote: "12 sessions" }
                   ].map((opt, i) => (
                     <button key={opt.id} onClick={() => setBookingOption(opt.id)}
                       style={{ display: "flex", alignItems: "center", width: "100%", padding: "10px 0", background: "none", border: "none", borderTop: i > 0 ? "1px solid var(--color-grey-100)" : "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left", gap: 12 }}>
@@ -2186,11 +2555,16 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         {opt.subtitle && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{opt.subtitle}</div>}
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: "var(--font-size-5)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.2 }}>{opt.price}</div>
+                        <div style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", lineHeight: 1.2 }}>{opt.price}</div>
                         <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginTop: 1 }}>{opt.priceNote}</div>
                       </div>
                     </button>
                   ))}
+                  <div style={{ height: 1, background: "var(--color-grey-100)" }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 0" }}>
+                    <Wallet size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                    <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)" }}>From Wraparound account</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2202,7 +2576,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   if (bookingOption === "individual") { setFlowStep("choose-dates"); setSelectedGridDates({}); }
                   else { setFlowStep("payment"); setReviewDatesExpanded(false); }
                 }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  {bookingOption === "individual" ? "Choose sessions" : "Book now"}
+                  {bookingOption === "individual" ? "Choose sessions" : "Continue to payment"}
                 </button>
               </div>
             )}
@@ -2294,10 +2668,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Please select at least one session to continue.</span>
                 </div>
               )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setFlowStep("payment"); setReviewDatesExpanded(false); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{`Book for ${selectedChild.name}`}</button>
-                <button className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
-              </div>
+              <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setFlowStep("payment"); setReviewDatesExpanded(false); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Continue to payment</button>
             </div>
             <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
               <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
@@ -2403,15 +2774,21 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     <Wallet size={24} color="var(--color-grey-900)" strokeWidth={1.5} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)" }}>Paying from</div>
+                    <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)" }}>From</div>
                     <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Wraparound account</div>
                   </div>
                 </div>
                 <div style={{ height: 1, background: "var(--color-grey-100)", margin: "12px 0" }} />
                 {shortfall <= 0 ? (
                   chargeOnAttendance ? (
-                    <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-                      £10.00 deducted each day your child attends a session
+                    <div>
+                      <div>
+                        <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginBottom: 2 }}>Current balance</div>
+                        <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{wraparoundBalance.toFixed(2)}</div>
+                      </div>
+                      <div style={{ marginTop: 10, borderTop: "1px solid var(--color-grey-100)", paddingTop: 10, fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+                        £10.00 deducted from your balance each time {selectedChild.name} attends
+                      </div>
                     </div>
                   ) : (
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -2443,8 +2820,15 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-destructive)" }}>£{shortfall.toFixed(2)}</div>
                       </div>
                     </div>
-                    <div style={{ marginTop: 12, borderTop: "1px solid var(--color-grey-100)", paddingTop: 12, fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>
-                      Add £{shortfall.toFixed(2)} to complete this booking
+                    <div style={{ marginTop: 12, borderTop: "1px solid var(--color-grey-100)", paddingTop: 12 }}>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>
+                        Add £{shortfall.toFixed(2)} to complete this booking
+                      </div>
+                      {chargeOnAttendance && (
+                        <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", marginTop: 4, lineHeight: 1.4 }}>
+                          Money stays in your account — £10.00 deducted each time {selectedChild.name} attends
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -2457,74 +2841,72 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   Top up £{shortfall.toFixed(2)} to continue
                 </button>
               ) : (
-                <button onClick={() => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                  Complete booking
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button onClick={() => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                    Complete booking
+                  </button>
+                  <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: wraparoundClubConfig?.name ?? "After-school club", child: selectedChild.name }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                </div>
               )}
             </div>
             <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
               <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
             </div>
 
-            {/* ===== Top-up full screen ===== */}
+            {/* ===== Top-up bottom sheet ===== */}
             {showTopUpSheet && (
-              <div style={{ position: "absolute", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "var(--color-bg-secondary)" }}>
-                <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
-                  <div style={{ width: 120, height: 28, background: "#222", borderRadius: 14, display: isMobile ? "none" : "block" }} />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 12px", flexShrink: 0, background: "var(--color-white)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
-                  <button onClick={() => setShowTopUpSheet(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  </button>
-                  <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Top up account</span>
-                  <button onClick={() => setShowTopUpSheet(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
-                  </button>
-                </div>
+              <div onClick={() => setShowTopUpSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", height: 520, display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px", flexShrink: 0 }}>
+                    <button onClick={() => setShowTopUpSheet(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                    </button>
+                  </div>
 
-                <div style={{ flex: 1, overflowY: "auto", padding: "16px", background: "var(--color-bg-secondary)" }}>
-                  <Card padding="medium">
-                    <div style={{ textAlign: "center", fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", marginBottom: 4 }}>Wraparound care account</div>
-                    <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", margin: "0 0 24px", textAlign: "center" }}>Minimum top-up: £{minTopUp}.00</p>
-
-                    {/* Editable amount */}
-                    <div style={{ textAlign: "center", marginBottom: 6 }}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                        <span style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
+                  <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 8px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+                    <div style={{ textAlign: "center", marginBottom: 28 }}>
+                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Top up {selectedChild.name}'s Wraparound</div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>Current balance · £{wraparoundBalance.toFixed(2)}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 12 }}>
+                      <button onClick={() => { if (topUpAmount <= minTopUp) flashTopUpMinError(); else setTopUpAmount(topUpAmount - 1); }} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>−</button>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 2, border: `1px solid ${(topUpAmount < minTopUp || topUpMinFlash) ? "var(--color-destructive-500)" : "var(--color-border-default)"}`, borderRadius: 8, padding: "6px 20px", background: "var(--color-white)", transition: "border-color 0.15s ease" }}>
+                        <span style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={topUpAmount}
-                          onChange={(e) => { const v = parseInt(e.target.value) || 0; setTopUpAmount(Math.max(minTopUp, v)); }}
-                          style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(topUpAmount).length * 28 + 16}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
+                          onChange={(e) => { const v = parseInt(e.target.value) || 0; setTopUpAmount(Math.max(0, v)); }}
+                          style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(topUpAmount).length * 28}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
                         />
                       </div>
+                      <button onClick={() => setTopUpAmount(topUpAmount + 1)} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>+</button>
                     </div>
-                    <div style={{ textAlign: "center", fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)", marginBottom: 24 }}>Tap to edit amount</div>
-
-                    {/* Preset increment buttons */}
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 8 }}>
+                    <div style={{ height: 22, textAlign: "center", marginBottom: 24 }}>
+                      {(topUpAmount < minTopUp || topUpMinFlash) && (
+                        <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-destructive)" }}>Minimum top-up is £{minTopUp}</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
                       {[10, 25, 50].map((inc) => (
                         <button key={inc} onClick={() => setTopUpAmount(topUpAmount + inc)} className="btn-pill" style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", cursor: "pointer", fontFamily: "inherit" }}>
                           +£{inc}
                         </button>
                       ))}
                     </div>
-                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "center" }}>
                       <button onClick={() => setTopUpAmount(minTopUp)} style={{ background: "none", border: "none", fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>Reset to minimum</button>
                     </div>
-                  </Card>
-                </div>
-
-                <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
-                  <button onClick={() => setShowTopUpStripeSheet(true)} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                    Top up £{topUpAmount}.00 now
-                  </button>
-                </div>
-                <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
-                  <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
+                  </div>
+                  <div style={{ padding: "12px 16px 28px", flexShrink: 0, background: "var(--color-white)" }}>
+                    <button onClick={() => { if (topUpAmount < minTopUp) setTopUpAmount(minTopUp); setShowTopUpStripeSheet(true); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{topUpAmount < minTopUp ? `Top up minimum £${minTopUp}` : `Top up £${topUpAmount}.00 now`}</button>
+                  </div>
                 </div>
                 {showTopUpStripeSheet && (
-                  <div onClick={() => setShowTopUpStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
+                  <div onClick={() => setShowTopUpStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 10 }}>
                     <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
                       <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
                         <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
@@ -2572,7 +2954,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   </div>
                 )}
                 {showTopUpStripeApplePay && (
-                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 30 }}>
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
                     <div style={{ background: "#1c1c1e", borderRadius: "16px 16px 0 0", padding: "20px 20px 30px", color: "#fff" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                         <button onClick={() => setShowTopUpStripeApplePay(false)} style={{ background: "none", border: "none", color: "#0a84ff", fontSize: "var(--font-size-4)", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
@@ -2701,7 +3083,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setDetailDatesExpanded(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="#333" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
-              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "#333" }}>Club details</span>
+              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "#333" }}>Wraparound details</span>
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setDetailDatesExpanded(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="#333" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="#333" strokeWidth="1.8" strokeLinecap="round" /></svg>
               </button>
@@ -2829,7 +3211,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-grey-900)" }}>{period.type === "daily" ? "Individual sessions" : primary}</div>
+                            <div style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-grey-900)" }}>{primary}</div>
+                            {period.type === "daily" && primary !== "Individual sessions" && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 1 }}>Individual sessions</div>}
                           </div>
                           <div style={{ textAlign: "right", flexShrink: 0 }}>
                             <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-grey-900)" }}>{fmtPrice(period.price)}</div>
@@ -2844,7 +3227,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       return (<>
                         {[
                           { pds: dailyPds,  title: "Choose your sessions", bookingType: "individual" },
-                          { pds: termlyPds, title: "Block booking",    bookingType: "term" },
+                          { pds: termlyPds, title: "All sessions",    bookingType: "term" },
                         ].map(({ pds, title, bookingType }) => {
                           const isGroupSelected = pds.some(p => p.id === selectedBkPeriod?.id);
                           return (
@@ -2876,21 +3259,22 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     }
 
                     // S1/S2/S3/S4: single card
-                    const cardTitle = "Booking options";
+                    const cardTitle = "Booking details";
                     return (
-                      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "14px 16px" }}>
+                      <div style={{ background: "#fff", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "14px 16px 4px" }}>
                         <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{cardTitle}</div>
                         <div style={{ height: 1, background: "#eee", marginBottom: 10 }} />
                         {isSingle ? (() => {
                           const period = activeBkPeriods[0];
                           const { primary, secondary } = getContent(period);
                           return (
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}>
                               <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />
                               </div>
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-grey-900)" }}>{period.type === "daily" ? "Individual sessions" : primary}</div>
+                                <div style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-grey-900)" }}>{primary}</div>
+                                {period.type === "daily" && primary !== "Individual sessions" && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 1 }}>Individual sessions</div>}
                               </div>
                               <div style={{ textAlign: "right", flexShrink: 0 }}>
                                 <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-grey-900)" }}>{fmtPrice(period.price)}</div>
@@ -2899,6 +3283,11 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             </div>
                           );
                         })() : activeBkPeriods.map((p, i) => renderRow(p, i > 0))}
+                        <div style={{ height: 1, background: "#eee" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 0" }}>
+                          <Wallet size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                          <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)" }}>From Wraparound account</span>
+                        </div>
                       </div>
                     );
                   })()}
@@ -2931,14 +3320,15 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         {/* Breakfast - Booking options */}
         {detailPage === "breakfast" && flowStep === "booking-options" && (() => {
           const getBkTitle = (period) => {
+            if (period.name) return period.name;
             if (activeBkTimesVary && activeBkDaysVary) return `${expandDay(period.days)} · ${period.start}–${period.end}`;
             if (activeBkTimesVary) return `${period.start}–${period.end}`;
             if (activeBkDaysVary)  return expandDay(period.days);
-            return period.type === "daily" ? "Individual sessions" : "Block booking";
+            return period.type === "daily" ? "Individual sessions" : "All sessions";
           };
           const getBkSubtitle = (period) => {
-            if (activeBkPeriods.length <= 1 || (!activeBkTimesVary && !activeBkDaysVary)) return null;
-            return period.type === "daily" ? "Individual sessions" : "Block booking";
+            if (period.type !== "daily") return null;
+            return period.name ? "Individual sessions" : null;
           };
           const bkToMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
           const sortedBkPeriods = [...activeBkPeriods].sort((a, b) => {
@@ -3088,10 +3478,13 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <>
                     {weeks.map((week) => {
                       if (week.isHalfTerm) return (
-                        <div key={week.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: "var(--color-bg-secondary)", borderRadius: 12, border: "1px solid var(--color-grey-100)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <Calendar size={14} color="var(--color-text-tertiary)" strokeWidth={1.5} />
-                            <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{week.label}</span>
+                        <div key={week.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 16px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Calendar size={16} color="var(--color-text-tertiary)" strokeWidth={1.5} />
+                            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{week.label}</span>
+                              <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)" }}>No sessions</span>
+                            </div>
                           </div>
                           <span style={{ fontSize: "var(--font-size-2)", fontWeight: 500, color: "var(--color-text-secondary)", background: "var(--color-grey-100)", borderRadius: 20, padding: "3px 10px" }}>Half term</span>
                         </div>
@@ -3294,31 +3687,22 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     <Wallet size={24} color="var(--color-grey-900)" strokeWidth={1.5} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)" }}>Paying from</div>
+                    <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)" }}>From</div>
                     <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Wraparound account</div>
                   </div>
                 </div>
                 <div style={{ height: 1, background: "var(--color-grey-100)", margin: "12px 0" }} />
                 {shortfall <= 0 ? (
                   breakfastClubConfig.chargeOnAttendance ? (
-                    <>
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginBottom: 2 }}>Current balance</div>
-                          <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{wraparoundBalance.toFixed(2)}</div>
-                        </div>
-                        <div style={{ padding: "0 6px" }}>
-                          <ArrowRight size={16} color="var(--color-text-tertiary)" strokeWidth={1.5} />
-                        </div>
-                        <div style={{ flex: 1, textAlign: "right" }}>
-                          <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginBottom: 2 }}>Per session</div>
-                          <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{(selectedBkPeriod?.price ?? 0).toFixed(2)}</div>
-                        </div>
+                    <div>
+                      <div>
+                        <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", marginBottom: 2 }}>Current balance</div>
+                        <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{wraparoundBalance.toFixed(2)}</div>
                       </div>
-                      <div style={{ marginTop: 12, borderTop: "1px solid var(--color-grey-100)", paddingTop: 12, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
-                        {sessionCount} sessions · Charged when marked present
+                      <div style={{ marginTop: 10, borderTop: "1px solid var(--color-grey-100)", paddingTop: 10, fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+                        £{(selectedBkPeriod?.price ?? 0).toFixed(2)} deducted from your balance each time {selectedChild.name} attends
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <div style={{ flex: 1 }}>
@@ -3349,8 +3733,15 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-destructive)" }}>£{shortfall.toFixed(2)}</div>
                       </div>
                     </div>
-                    <div style={{ marginTop: 12, borderTop: "1px solid var(--color-grey-100)", paddingTop: 12, fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>
-                      Add £{shortfall.toFixed(2)} to complete this booking
+                    <div style={{ marginTop: 12, borderTop: "1px solid var(--color-grey-100)", paddingTop: 12 }}>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>
+                        Add £{shortfall.toFixed(2)} to complete this booking
+                      </div>
+                      {breakfastClubConfig.chargeOnAttendance && (
+                        <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", marginTop: 4, lineHeight: 1.4 }}>
+                          Money stays in your account — £{(selectedBkPeriod?.price ?? 0).toFixed(2)} deducted each time {selectedChild.name} attends
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -3367,7 +3758,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <button onClick={() => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
                     Complete booking
                   </button>
-                  <button className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                  <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: "Breakfast club", child: selectedChild.name }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                 </div>
               )}
             </div>
@@ -3375,52 +3766,54 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
             </div>
 
-            {/* ===== Top-up full screen ===== */}
+            {/* ===== Top-up bottom sheet ===== */}
             {showTopUpSheet && (
-              <div style={{ position: "absolute", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "var(--color-bg-secondary)" }}>
-                <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
-                  <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 12px", flexShrink: 0, background: "var(--color-white)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
-                  <button onClick={() => setShowTopUpSheet(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  </button>
-                  <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Top up account</span>
-                  <div style={{ width: 44 }} />
-                </div>
-                <div style={{ flex: 1, overflowY: "auto", padding: "16px", background: "var(--color-bg-secondary)" }}>
-                  <Card padding="medium">
-                    <div style={{ textAlign: "center", fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", marginBottom: 4 }}>Wraparound care account</div>
-                    <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", margin: "0 0 24px", textAlign: "center" }}>Minimum top-up: £{minTopUp}.00</p>
-                    <div style={{ textAlign: "center", marginBottom: 6 }}>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                        <span style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
+              <div onClick={() => setShowTopUpSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", height: 520, display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px", flexShrink: 0 }}>
+                    <button onClick={() => setShowTopUpSheet(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                    </button>
+                  </div>
+                  <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 8px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+                    <div style={{ textAlign: "center", marginBottom: 28 }}>
+                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Top up {selectedChild.name}'s Wraparound</div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>Current balance · £{wraparoundBalance.toFixed(2)}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 12 }}>
+                      <button onClick={() => { if (topUpAmount <= minTopUp) flashTopUpMinError(); else setTopUpAmount(topUpAmount - 1); }} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>−</button>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 2, border: `1px solid ${(topUpAmount < minTopUp || topUpMinFlash) ? "var(--color-destructive-500)" : "var(--color-border-default)"}`, borderRadius: 8, padding: "6px 20px", background: "var(--color-white)", transition: "border-color 0.15s ease" }}>
+                        <span style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={topUpAmount}
-                          onChange={e => setTopUpAmount(Math.max(2, Number(e.target.value)))}
-                          style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(topUpAmount).length * 28 + 16}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
+                          onChange={e => setTopUpAmount(Math.max(0, Number(e.target.value)))}
+                          style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(topUpAmount).length * 28}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
                         />
                       </div>
+                      <button onClick={() => setTopUpAmount(topUpAmount + 1)} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>+</button>
                     </div>
-                    <div style={{ textAlign: "center", fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)", marginBottom: 24 }}>Tap to edit amount</div>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    <div style={{ height: 22, textAlign: "center", marginBottom: 24 }}>
+                      {(topUpAmount < minTopUp || topUpMinFlash) && (
+                        <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-destructive)" }}>Minimum top-up is £{minTopUp}</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 12 }}>
                       {[10, 25, 50].map(amt => (
-                        <button key={amt} onClick={() => setTopUpAmount(prev => Math.max(2, prev + amt))} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", cursor: "pointer", fontFamily: "inherit" }}>+£{amt}</button>
+                        <button key={amt} onClick={() => setTopUpAmount(prev => prev + amt)} style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", cursor: "pointer", fontFamily: "inherit" }}>+£{amt}</button>
                       ))}
                     </div>
-                  </Card>
-                </div>
-                <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", background: "var(--color-white)", flexShrink: 0 }}>
-                  <button onClick={() => setShowTopUpStripeSheet(true)} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                    Top up £{topUpAmount}.00 now
-                  </button>
-                </div>
-                <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
-                  <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
+                  </div>
+                  <div style={{ padding: "12px 16px 28px", background: "var(--color-white)", flexShrink: 0 }}>
+                    <button onClick={() => { if (topUpAmount < minTopUp) setTopUpAmount(minTopUp); setShowTopUpStripeSheet(true); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{topUpAmount < minTopUp ? `Top up minimum £${minTopUp}` : `Top up £${topUpAmount}.00 now`}</button>
+                  </div>
                 </div>
                 {showTopUpStripeSheet && (
-                  <div onClick={() => setShowTopUpStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
+                  <div onClick={() => setShowTopUpStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 10 }}>
                     <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
                       <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
                         <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
@@ -3468,7 +3861,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   </div>
                 )}
                 {showTopUpStripeApplePay && (
-                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 30 }}>
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
                     <div style={{ background: "#1c1c1e", borderRadius: "16px 16px 0 0", padding: "20px 20px 30px", color: "#fff" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                         <button onClick={() => setShowTopUpStripeApplePay(false)} style={{ background: "none", border: "none", color: "#0a84ff", fontSize: "var(--font-size-4)", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
@@ -3540,7 +3933,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         <div
           style={{
             height: isMobile ? 20 : 50,
-            background: "#fafafa",
+            background: "var(--color-white)",
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "center",
@@ -3668,123 +4061,139 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 {/* Scrollable body */}
                 <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
                   {/* Summary card */}
-                  <div style={{ background: "#fff", borderRadius: 12, padding: "16px", border: "1px solid var(--color-grey-100)", marginBottom: 12 }}>
+                  <div style={{ background: "#fff", borderRadius: 12, padding: "16px", border: "1px solid var(--color-grey-100)" }}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                       <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>{item.title}</h2>
                       {item.status === "cancelled" && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", flexShrink: 0, marginTop: 4 }}>Cancelled</span>}
                     </div>
+                    {item.child && <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0 }}>For {item.child}</p>}
                     <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
-                    <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{item.sessions === 1 && item.dates?.[0] ? `${item.dates[0].label} · ${item.time}` : getClubScheduleLabel(item, clubExtras[item.id])}</p>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
-                      {item.location && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <MapPin size={14} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{item.location}</span>
-                        </div>
-                      )}
-                      {item.clubLead && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Users size={14} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{item.clubLead}</span>
-                        </div>
-                      )}
-                    </div>
+                    <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 8px" }}>{item.sessions === 1 && item.dates?.[0] ? `${item.dates[0].label} · ${item.time}` : getClubScheduleLabel(item, clubExtras[item.id])}</p>
 
-                    <div>
-                      {/* Sessions */}
-                      {item.sessions && item.sessions > 1 && (<>
-                        <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
-                        <div>
-                          {(() => {
-                            const hasPast = (item.dates || []).some(d => d.past);
-                            return (
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)" }}>
-                                  {hasPast ? `${item.sessions} sessions remaining` : `${item.sessions} sessions`}
-                                </span>
-                                {item.dates && (
-                                  <button onClick={() => { setBookingDetailDatesExpanded(!bookingDetailDatesExpanded); setPastSessionsCollapsed(true); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
-                                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2 }}>View dates</span>
-                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: bookingDetailDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })()}
-                          {bookingDetailDatesExpanded && item.dates && (() => {
-                            const pastDates = item.dates.filter(d => d.past);
-                            const upcomingDates = item.dates.filter(d => !d.past);
-                            const groups = {};
-                            upcomingDates.forEach(d => {
-                              const parts = d.label.split(" ");
-                              const month = parts[parts.length - 1];
-                              const dayDisplay = parts.slice(0, -1).join(" ");
-                              if (!groups[month]) groups[month] = [];
-                              groups[month].push({ ...d, dayDisplay });
-                            });
-                            const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
-                            const multiMonth = sortedMonths.length > 1;
-                            return (
-                              <div style={{ marginTop: 28 }}>
-                                {/* Past sessions — collapsed by default */}
-                                {pastDates.length > 0 && (
-                                  <div style={{ marginBottom: 16 }}>
-                                    <button
-                                      onClick={() => setPastSessionsCollapsed(!pastSessionsCollapsed)}
-                                      style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, marginBottom: pastSessionsCollapsed ? 0 : 8 }}
-                                    >
-                                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)" }}>
-                                        {pastSessionsCollapsed ? `Show ${pastDates.length} past sessions` : "Hide past sessions"}
-                                      </span>
-                                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: pastSessionsCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.2s" }}>
-                                        <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                                      </svg>
-                                    </button>
-                                    {!pastSessionsCollapsed && pastDates.map(d => {
-                                      const parts = d.label.split(" ");
-                                      const dayDisplay = parts.slice(0, -1).join(" ");
-                                      return (
-                                        <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
-                                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-600)", textDecoration: "line-through" }}>{dayDisplay}</span>
-                                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", background: "var(--color-bg-secondary)", borderRadius: 20, padding: "2px 10px" }}>Past</span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                                {/* Upcoming sessions */}
-                                {multiMonth ? sortedMonths.map((month, mi) => (
-                                  <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
-                                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
-                                    {groups[month].map(d => (
-                                      <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
-                                        <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.dayDisplay}</span>
-                                        {d.active !== false
-                                          ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{item.time}</span>
-                                          : d.note && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", background: "var(--color-bg-secondary)", borderRadius: 20, padding: "2px 10px" }}>{d.note}</span>
-                                        }
-                                      </div>
-                                    ))}
-                                  </div>
-                                )) : upcomingDates.map(d => (
-                                  <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
-                                    <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-grey-600)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.label}</span>
-                                    {d.active !== false
-                                      ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{item.time}</span>
-                                      : d.note && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", background: "var(--color-bg-secondary)", borderRadius: 20, padding: "2px 10px" }}>{d.note}</span>
-                                    }
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })()}
+                    {/* Sessions count + view dates */}
+                    {item.sessions && item.sessions > 1 && (
+                      <>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
+                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{`${item.sessions} sessions booked`}</span>
+                          {item.dates && (
+                            <button onClick={() => { setBookingDetailDatesExpanded(!bookingDetailDatesExpanded); setPastSessionsCollapsed(true); }} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, display: "flex", alignItems: "center", gap: 2 }}>
+                              <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500 }}>View dates</span>
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: bookingDetailDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            </button>
+                          )}
                         </div>
-                      </>)}
-                      {/* Paid */}
-                      {item.paid !== undefined && (<>
-                        <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0 0" }} />
+                        {bookingDetailDatesExpanded && item.dates && (() => {
+                          const pastDates = item.dates.filter(d => d.past);
+                          const upcomingDates = item.dates.filter(d => !d.past);
+                          const groups = {};
+                          upcomingDates.forEach(d => {
+                            const parts = d.label.split(" ");
+                            const month = parts[parts.length - 1];
+                            const dayDisplay = parts.slice(0, -1).join(" ");
+                            if (!groups[month]) groups[month] = [];
+                            groups[month].push({ ...d, dayDisplay });
+                          });
+                          const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
+                          const multiMonth = sortedMonths.length > 1;
+                          return (
+                            <div style={{ marginTop: 28 }}>
+                              {/* Past sessions — collapsed by default */}
+                              {pastDates.length > 0 && (
+                                <div style={{ marginBottom: 16 }}>
+                                  <button
+                                    onClick={() => setPastSessionsCollapsed(!pastSessionsCollapsed)}
+                                    style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, marginBottom: pastSessionsCollapsed ? 0 : 8 }}
+                                  >
+                                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)" }}>
+                                      {pastSessionsCollapsed ? `Show ${pastDates.length} past sessions` : "Hide past sessions"}
+                                    </span>
+                                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: pastSessionsCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.2s" }}>
+                                      <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  </button>
+                                  {!pastSessionsCollapsed && pastDates.map(d => {
+                                    const parts = d.label.split(" ");
+                                    const dayDisplay = parts.slice(0, -1).join(" ");
+                                    return (
+                                      <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
+                                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-600)", textDecoration: "line-through" }}>{dayDisplay}</span>
+                                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", background: "var(--color-bg-secondary)", borderRadius: 20, padding: "2px 10px" }}>Past</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {/* Upcoming sessions */}
+                              {multiMonth ? sortedMonths.map((month, mi) => (
+                                <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
+                                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>{month} 2026</div>
+                                  {groups[month].map(d => (
+                                    <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
+                                      <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.dayDisplay}</span>
+                                      {d.active !== false
+                                        ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{item.time}</span>
+                                        : d.note && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", background: "var(--color-bg-secondary)", borderRadius: 20, padding: "2px 10px" }}>{d.note}</span>
+                                      }
+                                    </div>
+                                  ))}
+                                </div>
+                              )) : upcomingDates.map(d => (
+                                <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
+                                  <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.label}</span>
+                                  {d.active !== false
+                                    ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{item.time}</span>
+                                    : d.note && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", background: "var(--color-bg-secondary)", borderRadius: 20, padding: "2px 10px" }}>{d.note}</span>
+                                  }
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </>
+                    )}
+
+                    {/* Location / provider tags */}
+                    {(item.location || item.clubLead) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 20 }}>
+                        {item.location && (
+                          <Tag variant="neutral">
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <MapPin size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                              {item.location}
+                            </span>
+                          </Tag>
+                        )}
+                        {item.clubLead && (
+                          <Tag variant="neutral">
+                            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
+                              {item.clubLead}
+                            </span>
+                          </Tag>
+                        )}
+                      </div>
+                    )}
+
+                    {/* About — inline */}
+                    {item.description && (
+                      !bkAboutExpanded ? (
+                        <>
+                          <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: 1.6, margin: "20px 0 0", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{item.description}</p>
+                          <button onClick={() => setBkAboutExpanded(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 0 0", fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500, fontFamily: "inherit", display: "block" }}>Read more</button>
+                        </>
+                      ) : (
+                        <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", lineHeight: 1.6, margin: "20px 0 0" }}>
+                          {item.description}{" "}<button onClick={() => setBkAboutExpanded(false)} style={{ display: "inline", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500, fontFamily: "inherit" }}>Read less</button>
+                        </p>
+                      )
+                    )}
+
+                    {/* Paid */}
+                    {item.paid !== undefined && (
+                      <>
+                        <div style={{ height: 1, background: "var(--color-grey-100)", margin: "16px 0" }} />
                         {item.status === "cancelled" ? (
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", marginTop: 14, background: "var(--color-bg-secondary)", borderRadius: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--color-bg-secondary)", borderRadius: 10 }}>
                             <div>
                               <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>Refund processing</div>
                               <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>Takes 3–5 working days</div>
@@ -3792,27 +4201,14 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             <div style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)" }}>{`£${item.paid.toFixed(2)}`}</div>
                           </div>
                         ) : (
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", marginTop: 14, background: "var(--color-brand-050)", borderRadius: 10 }}>
-                            <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-success-700)" }}>{item.paid > 0 ? "Paid" : "Cost"}</div>
-                            <div style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-success-700)" }}>{item.paid > 0 ? `£${item.paid.toFixed(2)}` : "Free"}</div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--color-success-050)", borderRadius: 10 }}>
+                            <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-success-700)" }}>{item.paid > 0 ? "Paid" : "Cost"}</span>
+                            <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-success-700)" }}>{item.paid > 0 ? `£${item.paid.toFixed(2)}` : "Free"}</span>
                           </div>
                         )}
-                      </>)}
-                    </div>
+                      </>
+                    )}
                   </div>
-
-                  {/* About this club */}
-                  {item.description && (
-                    <div style={{ background: "#fff", borderRadius: 12, padding: "16px", border: "1px solid var(--color-grey-100)" }}>
-                      <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-grey-900)", marginBottom: 8 }}>About this club</div>
-                      <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-grey-900)", lineHeight: 1.6, margin: "0 0 6px",
-                        ...(bkAboutExpanded ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" })
-                      }}>{item.description}</p>
-                      <button onClick={() => setBkAboutExpanded(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "var(--font-size-4)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2, fontFamily: "inherit" }}>
-                        {bkAboutExpanded ? "Read less" : "Read more"}
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
             );
@@ -3820,7 +4216,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
           {subPage === "my-bookings" && !selectedBookingItem && !selectedUpcomingItem && (() => {
             const needsAttentionItems = [
-              { id: "u4", title: "Art club", category: "Club", status: "cancelled", icon: <Shapes size={24} color={catColours["Club"].iconColor} strokeWidth={1.5} />, sub: "Wed 9 Apr", child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Wed", time: "15:30–16:30", paid: 6, location: "Art Room", description: "Art Club gives children the freedom to explore drawing, painting, printmaking, and mixed media in a relaxed creative space. Each session focuses on a different technique or theme, encouraging imagination and self-expression.", dates: [{ id: "art-apr9", label: "Wed 9 Apr" }] },
+              { id: "u4", title: "Art club", category: "Club", status: "cancelled", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Wed 9 Apr", child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Wed", time: "15:30–16:30", paid: 6, location: "Art Room", description: "Art Club gives children the freedom to explore drawing, painting, printmaking, and mixed media in a relaxed creative space. Each session focuses on a different technique or theme, encouraging imagination and self-expression.", dates: [{ id: "art-apr9", label: "Wed 9 Apr" }] },
               {
                 id: "t1",
                 title: "Year 4 residential – PGL",
@@ -3843,17 +4239,17 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 title: "Coding club",
                 category: "Club",
                 status: "pending-payment",
-                icon: <Shapes size={24} color={catColours["Club"].iconColor} strokeWidth={1.5} />,
+                icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,
                 dateRange: "6 Apr – 17 Jul 2026",
                 time: "15:30–16:30",
                 sessions: 11,
               },
-            ];
+            ].filter(i => i.category === "Club" || i.category === "Wraparound");
             const upcomingItems = [
-              { id: "u1", title: "Drumming",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-brand-600)" strokeWidth={1.5} />,   sub: "6 Apr – 17 Jul 2026", nextSession: "Mon 4 May",         child: "Molly", childColour: children[0].avatarColour, sessions: 6, days: "Mon", time: "15:30–16:15", termDates: "6 Apr – 17 Jul 2026", dates: drummingSessionDates, paid: 110, location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance." },
-              { id: "u2", title: "Breakfast club",   category: "Wraparound",       status: "confirmed", icon: <SunMoon size={24} color="var(--color-brand-600)" strokeWidth={1.5} />,  sub: "Mon 7 – Fri 11 Apr",                      child: "Molly", childColour: children[0].avatarColour, sessions: 5, days: "Mon – Fri", time: "07:45–08:30", paid: 25, location: "Dining Hall", clubLead: "School staff", description: "Start the day right with our breakfast club. Children enjoy a healthy breakfast including toast, cereal, fruit and juice, with time for reading, drawing and quiet activities before the school day begins. Staff supervise children and ensure they're ready for class.", dates: [{ id: "bk-apr7", label: "Mon 7 Apr", active: true }, { id: "bk-apr8", label: "Tue 8 Apr", active: true }, { id: "bk-apr9", label: "Wed 9 Apr", active: true }, { id: "bk-apr10", label: "Thu 10 Apr", active: true }, { id: "bk-apr11", label: "Fri 11 Apr", active: true }] },
-              { id: "u3", title: "Football",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-brand-600)" strokeWidth={1.5} />,   sub: "Tue 8 Apr",                                 child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Tue", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-apr8", label: "Tue 8 Apr" }] },
-            ];
+              { id: "u1", title: "Drumming",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "6 Apr – 17 Jul 2026", nextSession: "Mon 4 May",         child: "Molly", childColour: children[0].avatarColour, sessions: 10, days: "Mon", time: "15:30–16:15", termDates: "6 Apr – 17 Jul 2026", dates: drummingSessionDates, paid: 110, location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance." },
+              { id: "u2", title: "Breakfast club",   category: "Wraparound",       status: "confirmed", icon: <SunMoon size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,  sub: "Mon 7 – Fri 11 Apr",                      child: "Molly", childColour: children[0].avatarColour, sessions: 5, days: "Mon – Fri", time: "07:45–08:30", paid: 25, location: "Dining Hall", clubLead: "School staff", description: "Start the day right with our breakfast club. Children enjoy a healthy breakfast including toast, cereal, fruit and juice, with time for reading, drawing and quiet activities before the school day begins. Staff supervise children and ensure they're ready for class.", dates: [{ id: "bk-apr7", label: "Mon 7 Apr", active: true }, { id: "bk-apr8", label: "Tue 8 Apr", active: true }, { id: "bk-apr9", label: "Wed 9 Apr", active: true }, { id: "bk-apr10", label: "Thu 10 Apr", active: true }, { id: "bk-apr11", label: "Fri 11 Apr", active: true }] },
+              { id: "u3", title: "Football",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "Tue 8 Apr",                                 child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Tue", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-apr8", label: "Tue 8 Apr" }] },
+            ].filter(i => i.category === "Club" || i.category === "Wraparound");
             const pastItems = [
               { id: "p0", title: "Parents' evening", category: "Parents' evening", status: "attended", icon: (
                 <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
@@ -3873,7 +4269,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               { id: "p6", title: "Meals",          category: "Meals",                          icon: <Utensils size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "w/c 24 Feb · 4 of 5 days selected", child: "Molly", childColour: children[0].avatarColour },
               { id: "p7", title: "Art club",       category: "Club",       status: "attended", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "Wed 5 Mar", child: "Molly", childColour: children[0].avatarColour, sessions: 1, paid: 6, days: "Wed", time: "15:30–16:30", location: "Art Room", description: "Art Club gives children the freedom to explore drawing, painting, printmaking, and mixed media in a relaxed creative space. Each session focuses on a different technique or theme, encouraging imagination and self-expression.", dates: [{ id: "art-mar5", label: "Wed 5 Mar" }] },
               { id: "p8", title: "School tie",     category: "Shop",       status: "received", icon: <ShoppingBag size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Order #1042", child: "Molly", childColour: children[0].avatarColour },
-            ];
+            ].filter(i => i.category === "Club" || i.category === "Wraparound");
 
             const activeItems = bookingsFilter === "needs-attention" ? needsAttentionItems
               : bookingsFilter === "upcoming" ? upcomingItems
@@ -3927,19 +4323,16 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 3 }}>{item.title}</div>
-                              {item.status === "cancelled" ? (<>
-                                <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)" }}>{item.sub}</div>
-                                {(item.time || item.sessions) && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2, marginBottom: 8 }}>{[item.time, item.sessions && `${item.sessions} ${item.sessions === 1 ? "session" : "sessions"}`].filter(Boolean).join(" · ")}</div>}
-                                <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA" }}>Cancelled · Refund processing</span>
-                              </>) : item.status === "pending-payment" ? (<>
-                                <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 2 }}>{item.dateRange || item.sub}</div>
-                                {(item.time || item.sessions) && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginBottom: 8 }}>{[item.time, item.sessions && `${item.sessions} sessions`].filter(Boolean).join(" · ")}</div>}
-                                <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }}>Awaiting payment</span>
-                              </>) : (<>
-                                <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 2 }}>{item.dateRange}</div>
-                                {item.time && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginBottom: 8 }}>{item.time}</div>}
-                                <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }}>Outstanding payment</span>
-                              </>)}
+                              <div style={{ fontSize: "var(--font-size-3)" }}>
+                                <span style={{ fontWeight: 500, color: "var(--color-text-secondary)" }}>{item.dateRange || item.sub}</span>
+                                {item.time && <span style={{ color: "var(--color-text-tertiary)" }}> · {item.time}</span>}
+                              </div>
+                              {item.sessions > 1 && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{`${item.sessions} sessions`}</div>}
+                              <div style={{ marginTop: 8 }}>
+                                {item.status === "cancelled" && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA" }}>Cancelled · Refund processing</span>}
+                                {item.status === "pending-payment" && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }}>Awaiting payment</span>}
+                                {!item.status && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }}>Outstanding payment</span>}
+                              </div>
                             </div>
                             {!(item.status === "pending-payment" && !item.remaining) && <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 2 }}><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
                           </div>
@@ -3956,8 +4349,11 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                                 <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{item.title}</div>
                               </div>
                               <div style={{ marginBottom: (item.status === "cancelled" || item.status === "pending-payment" || item.status === "pending-approval") ? 8 : 0 }}>
-                                <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)" }}>{item.nextSession || item.sub}</div>
-                                {(item.time || item.sessions) && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{[item.time, item.sessions && `${item.sessions} ${item.sessions === 1 ? "session" : "sessions"}`].filter(Boolean).join(" · ")}</div>}
+                                <div style={{ fontSize: "var(--font-size-3)" }}>
+                                  <span style={{ fontWeight: 500, color: "var(--color-text-secondary)" }}>{item.nextSession || item.sub}</span>
+                                  {item.time && <span style={{ color: "var(--color-text-tertiary)" }}> · {item.time}</span>}
+                                </div>
+                                {item.sessions > 1 && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{`${item.sessions} sessions booked`}</div>}
                               </div>
                               {item.status === "cancelled"  && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA" }}>Cancelled</span>}
                               {item.status === "pending-payment"  && <Tag variant="default" style={{ background: "var(--color-warning-050)", color: "var(--color-icon-warning)" }}>Pending · awaiting payment</Tag>}
@@ -3979,7 +4375,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                               </div>
                               <div style={{ marginBottom: item.status === "received" ? 8 : 0 }}>
                                 <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)" }}>{item.sub}</div>
-                                {(item.time || item.sessions) && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{[item.time, item.sessions && `${item.sessions} ${item.sessions === 1 ? "session" : "sessions"}`].filter(Boolean).join(" · ")}</div>}
+                                {item.sessions > 1 && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{`${item.sessions} sessions`}</div>}
                               </div>
                               {item.status === "received" && <Tag variant="neutral">Received</Tag>}
                             </div>
@@ -3996,25 +4392,25 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
           {subPage === "browse" && (() => {
             const today = new Date(2026, 3, 10);
-            const clubIcon = <Shapes size={18} color="var(--color-brand-600)" strokeWidth={1.5} />;
-            const wraparoundIcon = <SunMoon size={18} color="var(--color-brand-600)" strokeWidth={1.5} />;
-            const tripIcon = <Bus size={18} color="var(--color-brand-600)" strokeWidth={1.5} />;
+            const clubIcon = <Shapes size={16} color="var(--color-brand-600)" strokeWidth={1.5} />;
+            const wraparoundIcon = <SunMoon size={16} color="var(--color-brand-600)" strokeWidth={1.5} />;
+            const tripIcon = <Bus size={16} color="var(--color-brand-600)" strokeWidth={1.5} />;
 
             const uniqueBkTimes = new Set(activeBkPeriods.map(p => `${p.start}–${p.end}`));
             const bkTimeDisplay = uniqueBkTimes.size === 1 ? [...uniqueBkTimes][0] : "Multiple times";
 
             const browseItems = [
-              { id: 1, type: "clubs", title: "Drumming", icon: clubIcon, days: "Mon", dayOrder: [1], time: "15:30\u201316:15", price: "\u00a3110", priceLabel: "all sessions", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 2), deadlineLabel: "2 May", places: 7, blockOnly: true, location: "Music Block R1", clubLead: "Beat Academy" },
+              { id: 1, type: "clubs", title: "Drumming", icon: clubIcon, days: "Mon", dayOrder: [1], time: "15:30\u201316:15", price: "\u00a3110", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 2), deadlineLabel: "2 May", places: 7, blockOnly: true, location: "Music Block R1", clubLead: "Beat Academy" },
               { id: 16, type: "clubs", title: "Chess club", icon: clubIcon, days: "Mon", dayOrder: [1], time: "15:30\u201316:30", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 5), deadlineLabel: "5 May", places: 24, individualOnly: true, location: "Library", clubLead: "Mr Harris" },
               { id: 5, type: "clubs", title: "Football", icon: clubIcon, days: "Tue, Wed", dayOrder: [2, 3], time: "15:30\u201316:30", price: "\u00a38", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 9), deadlineLabel: "9 May", places: 15, location: "Sports Hall" },
-              { id: 17, type: "clubs", title: "Dance", icon: clubIcon, days: "Tue", dayOrder: [2], time: "15:30\u201316:15", price: "\u00a366", priceLabel: "all sessions", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 1), deadlineLabel: "1 May", places: 10, blockOnly: true, location: "Main Hall" },
+              { id: 17, type: "clubs", title: "Dance", icon: clubIcon, days: "Tue", dayOrder: [2], time: "15:30\u201316:15", price: "\u00a366", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 1), deadlineLabel: "1 May", places: 10, blockOnly: true, location: "Main Hall" },
               { id: 18, type: "clubs", title: "Choir", icon: clubIcon, days: "Tue", dayOrder: [2], time: "08:00\u201308:45", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 3, 17), deadlineLabel: "17 Apr", places: 3, location: "Music Block R2" },
               { id: 6, type: "clubs", title: "Art club", icon: clubIcon, days: "Wed", dayOrder: [3], time: "15:30\u201316:30", price: "\u00a36", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 7), deadlineLabel: "7 May", places: 12, location: "Art Room" },
               { id: 19, type: "clubs", title: "Book club", icon: clubIcon, days: "Wed", dayOrder: [3], time: "12:30\u201313:00", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 14), deadlineLabel: "14 May", places: 16, individualOnly: true, location: "Library" },
               { id: 7, type: "clubs", title: "Coding club", icon: clubIcon, days: "Thu", dayOrder: [4], time: "15:30\u201316:30", price: "\u00a37", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 8), deadlineLabel: "8 May", places: 20, location: "ICT Suite" },
               { id: 21, type: "clubs", title: "Drama", icon: clubIcon, days: "Mon, Thu", dayOrder: [1, 4], time: "15:30\u201316:30", price: "\u00a38", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 3, 15), deadlineLabel: "15 Apr", places: 5, location: "Drama Studio" },
               { id: 8, type: "clubs", title: "Netball", icon: clubIcon, days: "Fri", dayOrder: [5], time: "15:30\u201316:30", price: "\u00a35", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 4), deadlineLabel: "4 May", places: 18, location: "Sports Hall" },
-              { id: 20, type: "clubs", title: "Gymnastics", icon: clubIcon, days: "Fri", dayOrder: [5], time: "15:30\u201316:30", price: "\u00a39", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 4), deadlineLabel: "4 May", places: 8, location: "Sports Hall" },
+              { id: 20, type: "clubs", title: "Beginner gymnastics & tumbling skills", icon: clubIcon, days: "Fri", dayOrder: [5], time: "15:30\u201316:30", price: "\u00a39", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 4), deadlineLabel: "4 May", places: 8, location: "Sports Hall" },
               { id: 2,  type: "wraparound", title: "Monday After School Club",    icon: wraparoundIcon, days: "Mon",    dayOrder: [1], time: "15:30\u201317:00", price: "\u00a310", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", paymentTiming: "Charged at time of booking", sameDayCutoff: "Book by 12:30 on the day", deadline: null, deadlineLabel: null, places: 40 },
               { id: 22, type: "wraparound", title: "Tuesday After School Club",   icon: wraparoundIcon, days: "Tue",   dayOrder: [2], time: "15:30\u201317:00", price: "\u00a310", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", paymentTiming: "Charged at time of booking", sameDayCutoff: "Book by 12:30 on the day", deadline: null, deadlineLabel: null, places: 40 },
               { id: 23, type: "wraparound", title: "Wednesday After School Club", icon: wraparoundIcon, days: "Wed", dayOrder: [3], time: "15:30\u201317:00", price: "\u00a310", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", paymentTiming: "Charged at time of booking", sameDayCutoff: "Book by 12:30 on the day", deadline: null, deadlineLabel: null, places: 40 },
@@ -4194,6 +4590,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   const isUrgent = daysUntilDeadline <= closingSoonDays && item.places !== null && item.places <= lowPlacesThreshold;
                   const hasBothOptions = !item.blockOnly && !item.individualOnly && item.price !== "Free";
                   const displayPrice = hasBothOptions ? `From ${item.price}` : item.price;
+                  const blockOnlySessions = item.blockOnly ? clubExtras[item.id]?.blockSessions : null;
+                  const displayPriceLabel = blockOnlySessions ? `${blockOnlySessions} sessions` : item.priceLabel;
 
                   return (
                   <button
@@ -4230,7 +4628,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                               const parts = label.split(' · ');
                               if (parts.length === 2) {
                                 return (
-                                  <span style={{ fontSize: "var(--font-size-3)" }}>
+                                  <span style={{ fontSize: "var(--font-size-3)", whiteSpace: "nowrap" }}>
                                     <span style={{ fontWeight: 500, color: "var(--color-text-secondary)" }}>{parts[0]}</span>
                                     <span style={{ color: "var(--color-text-tertiary)" }}> · {parts[1]}</span>
                                   </span>
@@ -4257,8 +4655,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       {/* Price column — fixed width, pinned to top */}
                       <div style={{ width: 80, flexShrink: 0, display: "flex", flexDirection: "column", justifyContent: "flex-start", alignItems: "flex-start" }}>
                         <span style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-grey-900)" }}>{displayPrice}</span>
-                        {item.priceLabel && (
-                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{item.priceLabel}</span>
+                        {displayPriceLabel && (
+                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{displayPriceLabel}</span>
                         )}
                       </div>
 
@@ -4282,8 +4680,11 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
           {subPage === "tx-history" && (() => {
             const isWraparound = txHistoryAccount === "wraparound";
-            const accountName = isWraparound ? "Wraparound account" : "Meals account";
-            const balance = isWraparound ? wraparoundBalance : mealsBalance;
+            const isMilk = txHistoryAccount === "milk";
+            const accountName = isWraparound ? "Wraparound account" : isMilk ? "Milk account" : "Meals account";
+            const balance = isWraparound ? wraparoundBalance : isMilk ? -5.20 : mealsBalance;
+            const isOverdrawn = balance < 0;
+            const isLow = !isOverdrawn && balance <= lowFundsThreshold;
 
             const allTransactions = {
               meals: [...dynamicTransactions.meals,
@@ -4298,6 +4699,22 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 { date: "11 Apr", month: "April 2026", description: "School meal", amount: -2.65 },
                 { date: "9 Apr",  month: "April 2026", description: "School meal", amount: -2.65 },
                 { date: "8 Apr",  month: "April 2026", description: "School meal", amount: -2.65 },
+              ],
+              milk: [
+                { date: "29 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "28 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "25 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "24 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "23 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "22 Apr", month: "April 2026", description: "Top-up", amount: 5.00, paidBy: "you" },
+                { date: "17 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "16 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "15 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "14 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "11 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "9 Apr",  month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "8 Apr",  month: "April 2026", description: "Milk", amount: -0.27 },
+                { date: "7 Apr",  month: "April 2026", description: "Top-up", amount: 5.00, paidBy: "James Brown" },
               ],
               wraparound: [...dynamicTransactions.wraparound,
                 { date: "29 Apr", month: "April 2026", description: "After school club", amount: -10.00 },
@@ -4326,7 +4743,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               ],
             };
 
-            const transactions = allTransactions[txHistoryAccount] || [];
+            const previewEmpty = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("empty") === "1";
+            const transactions = previewEmpty ? [] : (allTransactions[txHistoryAccount] || []);
             let rb = balance;
             const transactionsWithBalance = transactions.map(tx => {
               const balanceAfter = rb;
@@ -4342,34 +4760,41 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
             return (
               <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%", display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", background: "var(--color-bg-primary)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)", flexShrink: 0 }}>
-                  <button onClick={() => { setSubPage(null); setTxHistoryAccount(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-text-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  </button>
-                  <span style={{ flex: 1, fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>{accountName}</span>
-                </div>
+                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ padding: "12px 8px 0" }}>
+                      <button onClick={() => { setSubPage(null); setTxHistoryAccount(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-text-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 16px 36px" }}>
+                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)" }}>{isWraparound ? "Wraparound balance" : isMilk ? "Milk balance" : "Meals balance"}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                        <span style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: isOverdrawn ? "var(--color-text-destructive)" : isLow ? "var(--color-warning-600)" : "var(--color-text-primary)", fontVariantNumeric: "tabular-nums" }}>{isOverdrawn ? `−£${Math.abs(balance).toFixed(2)}` : `£${balance.toFixed(2)}`}</span>
+                        {isOverdrawn && <Tag variant="error">Owed</Tag>}
+                        {isLow && <Tag variant="default">Low</Tag>}
+                      </div>
+                      <button onClick={() => { setStandaloneTopUpAccount(txHistoryAccount); setTopUpAmount(10); setShowStandaloneTopUp(true); setStandaloneTopUpAddedToBasket(false); setStandaloneTopUpSuccess(false); }} style={{ marginTop: 6, padding: "8px 20px", borderRadius: 20, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Top up</button>
+                    </div>
+                  </div>
 
-                <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px", display: "flex", flexDirection: "column", gap: 16 }}>
-                  <Card padding="medium">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ fontSize: "var(--font-size-2)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 4 }}>Current balance</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: "var(--font-size-6)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", fontVariantNumeric: "tabular-nums" }}>£{balance.toFixed(2)}</span>
-                          {balance <= lowFundsThreshold && <Tag variant="default">Low</Tag>}
+                  <div style={{ flex: 1, padding: "0 16px 24px" }}>
+                  <Card style={{ borderRadius: 16, overflow: "hidden", padding: 0 }}>
+                    {transactions.length === 0 ? (
+                      <div style={{ padding: "32px 24px", textAlign: "center", display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>No transactions yet</div>
+                        <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
+                          Top-ups and {isWraparound ? "session" : isMilk ? "milk" : "meal"} charges will appear here.
                         </div>
                       </div>
-                      <Button variant="primary" size="small" onClick={() => { setStandaloneTopUpAccount(txHistoryAccount); setTopUpAmount(10); setShowStandaloneTopUp(true); setStandaloneTopUpAddedToBasket(false); setStandaloneTopUpSuccess(false); }}>Top up</Button>
-                    </div>
-                  </Card>
-
-                  {groups.map((group) => (
-                    <div key={group.month}>
-                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>{group.month}</div>
-                      <Card padding="none">
+                    ) : groups.map((group, gi) => (
+                      <div key={group.month}>
+                        {gi > 0 && <div style={{ margin: "var(--spacing-m) var(--spacing-l) 0", borderTop: "1px solid var(--color-grey-100)" }} />}
+                        <div style={{ padding: gi > 0 ? "var(--spacing-xl) var(--spacing-l) 6px" : "var(--spacing-l) var(--spacing-l) 6px" }}>
+                          <div style={{ fontSize: "var(--font-size-2)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-grey-600)" }}>{group.month}</div>
+                        </div>
                         {group.items.map((tx, i) => (
                           <div key={i}>
-                            {i > 0 && <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />}
                             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px" }}>
                               <div style={{ width: 48, flexShrink: 0 }}>
                                 <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{tx.date}</div>
@@ -4397,148 +4822,260 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             </div>
                           </div>
                         ))}
-                      </Card>
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </Card>
+                  </div>
                 </div>
               </div>
             );
           })()}
 
           {/* Main tab content */}
-          {!subPage && activeTab === "book-pay" && (
-            <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%", padding: "20px 0 32px", display: "flex", flexDirection: "column", gap: 24, overflowY: "auto" }}>
+          {!subPage && activeTab === "book-pay" && EXPLORE_BOOK_PAY && (
+            <BookPayLandingV2
+              basketCount={basketCount}
+              bookingsSectionState={bookingsSectionState}
+              setBookingsSectionState={setBookingsSectionState}
+              bookingsNeedsAttentionCount={bookingsNeedsAttentionCount}
+              setBookingsFilter={setBookingsFilter}
+              setSubPage={setSubPage}
+              familyChildren={children}
+              selectedChild={selectedChild}
+              drummingSessionDates={drummingSessionDates}
+              mealsBalance={mealsBalance}
+              wraparoundBalance={wraparoundBalance}
+              lowFundsThreshold={lowFundsThreshold}
+              setTxHistoryAccount={setTxHistoryAccount}
+              setStandaloneTopUpAccount={setStandaloneTopUpAccount}
+              setTopUpAmount={setTopUpAmount}
+              setShowStandaloneTopUp={setShowStandaloneTopUp}
+              setStandaloneTopUpAddedToBasket={setStandaloneTopUpAddedToBasket}
+              setStandaloneTopUpSuccess={setStandaloneTopUpSuccess}
+              setBrowseFilter={setBrowseFilter}
+              setBookingDetailDatesExpanded={setBookingDetailDatesExpanded}
+              setBookingReturnTo={setBookingReturnTo}
+              setSelectedUpcomingItem={setSelectedUpcomingItem}
+              browseSectionRef={browseSectionRef}
+            />
+          )}
+          {!subPage && activeTab === "book-pay" && !EXPLORE_BOOK_PAY && (
+            <div className="paper-grain" style={{ backgroundColor: "var(--color-bg-secondary)", minHeight: "100%", padding: "20px 0 32px", display: "flex", flexDirection: "column", gap: 24, overflowY: "auto" }}>
 
-              {/* Accounts */}
-              <div>
-                <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", padding: "0 16px", marginBottom: 10 }}>Accounts</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 16px" }}>
-                  {[
-                    { id: "meals",      label: "Meals",       balance: mealsBalance,      Icon: Utensils },
-                    { id: "wraparound", label: "Wraparound",  balance: wraparoundBalance, Icon: SunMoon  },
-                  ].map((account) => {
-                    const isLow = account.balance <= lowFundsThreshold;
-                    return (
-                    <Card
-                      key={account.id}
-                      padding="medium"
-                      style={{ cursor: "pointer", background: "var(--color-white)" }}
-                      onClick={() => { setTxHistoryAccount(account.id); setSubPage("tx-history"); }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                          <div style={{ width: 32, height: 32, borderRadius: 8, background: isLow ? "var(--color-warning-050)" : "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <account.Icon size={18} color={isLow ? "var(--color-icon-warning)" : "var(--color-brand-600)"} strokeWidth={1.5} />
-                          </div>
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: "var(--font-size-2)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 4 }}>{account.label}</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                            <span style={{ fontSize: "var(--font-size-6)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", fontVariantNumeric: "tabular-nums" }}>£{account.balance.toFixed(2)}</span>
-                            {account.balance <= lowFundsThreshold && <Tag variant="default">Low</Tag>}
-                          </div>
-                          <div style={{ display: "flex" }}>
-                            <Button
-                              variant={account.balance <= lowFundsThreshold ? "primary" : "secondary"}
-                              size="small"
-                              style={{ flex: 1 }}
-                              onClick={(e) => { e.stopPropagation(); setStandaloneTopUpAccount(account.id); setTopUpAmount(10); setShowStandaloneTopUp(true); setStandaloneTopUpAddedToBasket(false); setStandaloneTopUpSuccess(false); }}
-                            >
-                              Top up
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  );})}
+              {/* Basket banner */}
+              {basketCount > 0 && (
+                <div onClick={() => {}} style={{ margin: "0 16px", padding: "12px 16px", borderRadius: 12, background: "var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2H3.5L5.5 10H12L13.5 5H4.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="6" cy="12.5" r="0.8" fill="white"/><circle cx="11" cy="12.5" r="0.8" fill="white"/></svg>
+                    <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-white)" }}>{basketCount} item{basketCount !== 1 ? "s" : ""} in basket</span>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </div>
+              )}
+
+              {/* Bookings & balances */}
+              <div style={{ padding: "0 16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Bookings &amp; balances</div>
+                  {/* Prototype state toggle */}
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {[{ id: "attention", label: "⚠" }, { id: "clear", label: "✓" }, { id: "empty", label: "∅" }].map(s => (
+                      <button key={s.id} onClick={() => setBookingsSectionState(s.id)} style={{ padding: "2px 7px", borderRadius: 6, border: "1px solid", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", borderColor: bookingsSectionState === s.id ? "var(--color-brand-600)" : "var(--color-border-default)", background: bookingsSectionState === s.id ? "var(--color-brand-600)" : "var(--color-bg-primary)", color: bookingsSectionState === s.id ? "var(--color-white)" : "var(--color-text-tertiary)" }}>{s.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <Card padding="none" style={{ overflow: "hidden" }}>
+                  {(() => {
+                    const upcomingItems = (bookingsSectionState !== "empty" ? [
+                      { id: "u1", title: "Drumming",       nextDate: new Date(2026, 4,  4), icon: <Shapes  size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, meta: "Mon 4 May · 15:30–16:15",          category: "Club",       status: "confirmed", sub: "6 Apr – 17 Jul 2026", child: "Molly", childColour: children[0].avatarColour, sessions: 10, days: "Mon", time: "15:30–16:15", termDates: "6 Apr – 17 Jul 2026", dates: drummingSessionDates, paid: 110, location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance." },
+                      { id: "u2", title: "Breakfast club", nextDate: new Date(2026, 3,  7), icon: <SunMoon size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, meta: "Mon 7 – Fri 11 Apr · 07:45–08:30", category: "Wraparound", status: "confirmed", sub: "Mon 7 – Fri 11 Apr", child: "Molly", childColour: children[0].avatarColour, sessions: 5, days: "Mon – Fri", time: "07:45–08:30", paid: 25, location: "Dining Hall", clubLead: "School staff", description: "Start the day right with our breakfast club. Children enjoy a healthy breakfast including toast, cereal, fruit and juice, with time for reading, drawing and quiet activities before the school day begins. Staff supervise children and ensure they're ready for class.", dates: [{ id: "bk-apr7", label: "Mon 7 Apr", active: true }, { id: "bk-apr8", label: "Tue 8 Apr", active: true }, { id: "bk-apr9", label: "Wed 9 Apr", active: true }, { id: "bk-apr10", label: "Thu 10 Apr", active: true }, { id: "bk-apr11", label: "Fri 11 Apr", active: true }] },
+                    ] : []).sort((a, b) => a.nextDate - b.nextDate);
+
+                    return (
+                      <>
+                        {/* Needs attention — inset row inside card */}
+                        {bookingsSectionState === "attention" && (
+                          <div style={{ margin: "12px 16px 4px" }}>
+                            <button
+                              onClick={() => { setBookingsFilter("needs-attention"); setSubPage("my-bookings"); }}
+                              style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", width: "100%", background: "var(--color-warning-050)", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                            >
+                              <AlertTriangle size={16} color="var(--color-icon-warning)" strokeWidth={1.5} style={{ flexShrink: 0 }} />
+                              <span style={{ flex: 1, fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-warning)" }}>1 payment due · 1 cancelled</span>
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M6 4L10 8L6 12" stroke="var(--color-icon-warning)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Next up — single inset card, hidden when empty */}
+                        {bookingsSectionState !== "empty" && <>
+                          <div style={{ padding: "12px 16px 8px" }}>
+                            <span style={{ fontSize: "var(--font-size-2)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)" }}>Next up</span>
+                          </div>
+                          {upcomingItems[0] && (
+                            <div style={{ margin: "0 16px 4px" }}>
+                              <button
+                                onClick={() => { setBookingDetailDatesExpanded(false); setBookingReturnTo("landing"); setSelectedUpcomingItem(upcomingItems[0]); setSubPage("my-bookings"); }}
+                                style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 12px", width: "100%", background: "var(--color-bg-secondary)", border: "none", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                              >
+                                <div style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {upcomingItems[0].icon}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", marginBottom: 2 }}>{upcomingItems[0].title}</div>
+                                  <div style={{ fontSize: "var(--font-size-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <span style={{ fontWeight: 500, color: "var(--color-text-secondary)" }}>{upcomingItems[0].meta.split(" · ")[0]}</span>
+                                    {upcomingItems[0].meta.includes(" · ") && <span style={{ color: "var(--color-text-tertiary)" }}> · {upcomingItems[0].meta.split(" · ")[1]}</span>}
+                                  </div>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* View all CTA */}
+                          <button
+                            onClick={() => { setBookingsFilter("upcoming"); setSubPage("my-bookings"); }}
+                            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 16px 10px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            <span style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-brand)" }}>View bookings &amp; orders</span>
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="var(--color-text-brand)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </button>
+
+                        </>}
+
+                      </>
+                    );
+                  })()}
+                </Card>
               </div>
 
-              {/* My bookings & orders */}
+              {/* Account balances */}
               <div>
-                <div style={{ padding: "0 16px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>
-                    Bookings & orders
-                  </div>
-                  {bookingsNeedsAttentionCount > 0 && (
-                    <button onClick={() => { setBookingsFilter("needs-attention"); setSubPage("my-bookings"); }} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--color-bg-warning-light)", border: "1px solid var(--color-warning-100)", borderRadius: 99, padding: "2px 8px 2px 6px" }}>
-                        <span style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-warning)" }}>{bookingsNeedsAttentionCount} need attention</span>
-                        <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="var(--color-text-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      </span>
-                    </button>
-                  )}
+                <div style={{ padding: "0 16px", marginBottom: 10 }}>
+                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Account balances</div>
                 </div>
-                <div style={{ padding: "0 16px" }}>
-                  <Card padding="none">
-                    {[
-                      { id: "u1", title: "Drumming",       category: "Club",       status: "confirmed", icon: <Shapes size={24} color="var(--color-brand-600)" strokeWidth={1.5} />, meta: "Mon 27 Apr · 15:30–16:15", sub: "6 Apr – 17 Jul 2026", child: "Molly", childColour: children[0].avatarColour, sessions: 6, days: "Mon", time: "15:30–16:15", termDates: "6 Apr – 17 Jul 2026", dates: drummingSessionDates, paid: 110, location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance." },
-                      { id: "u2", title: "Breakfast club", category: "Wraparound", status: "confirmed", icon: <SunMoon size={24} color="var(--color-brand-600)" strokeWidth={1.5} />, meta: "Mon 7 – Fri 11 Apr · 07:45–08:30", sub: "Mon 7 – Fri 11 Apr", child: "Molly", childColour: children[0].avatarColour, sessions: 5, days: "Mon – Fri", time: "07:45–08:30", paid: 25, location: "Dining Hall", clubLead: "School staff", description: "Start the day right with our breakfast club. Children enjoy a healthy breakfast including toast, cereal, fruit and juice, with time for reading, drawing and quiet activities before the school day begins. Staff supervise children and ensure they're ready for class.", dates: [{ id: "bk-apr7", label: "Mon 7 Apr", active: true }, { id: "bk-apr8", label: "Tue 8 Apr", active: true }, { id: "bk-apr9", label: "Wed 9 Apr", active: true }, { id: "bk-apr10", label: "Thu 10 Apr", active: true }, { id: "bk-apr11", label: "Fri 11 Apr", active: true }] },
-                      { id: "u3", title: "Football",       category: "Club",       status: "confirmed", icon: <Shapes size={24} color="var(--color-brand-600)" strokeWidth={1.5} />, meta: "Tue 8 Apr · 15:30–16:30", sub: "Tue 8 Apr", child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Tue", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-apr8", label: "Tue 8 Apr" }] },
-                    ].map((item, i) => (
-                      <div key={item.id}>
-                        {i > 0 && <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />}
-                        <button onClick={() => { setBookingDetailDatesExpanded(false); setBookingReturnTo("landing"); setSelectedUpcomingItem(item); setSubPage("my-bookings"); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
-                          <div style={{ width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            {item.icon}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", marginBottom: 2 }}>{item.title}</div>
-                            <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {item.meta.includes(" · ") ? (
-                                <>
-                                  <span style={{ color: "var(--color-text-secondary)" }}>{item.meta.split(" · ")[0]}</span>
-                                  <span style={{ color: "var(--color-text-tertiary)" }}> · {item.meta.split(" · ")[1]}</span>
-                                </>
-                              ) : (
-                                <span style={{ color: "var(--color-text-secondary)" }}>{item.meta}</span>
-                              )}
+                <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingLeft: 16, scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+                  {[
+                    { id: "meals",      label: "Meals",      balance: mealsBalance,      Icon: Utensils,    showTopUp: true  },
+                    { id: "wraparound", label: "Wraparound", balance: wraparoundBalance, Icon: SunMoon,     showTopUp: false },
+                    { id: "milk",       label: "Milk",       balance: 8.50,              Icon: ShoppingBag, showTopUp: false },
+                  ].map((account, i, arr) => {
+                    const isLow = account.balance <= lowFundsThreshold;
+                    return (
+                      <div key={account.id} style={{ flexShrink: 0, width: 156, paddingRight: i === arr.length - 1 ? 16 : 0 }}>
+                        <Card padding="none" style={{ overflow: "hidden", height: "100%" }}>
+                          <button
+                            onClick={() => { setTxHistoryAccount(account.id); setSubPage("tx-history"); }}
+                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 14px 10px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                          >
+                            <account.Icon size={16} color="var(--color-grey-900)" strokeWidth={1.5} style={{ flexShrink: 0 }} />
+                            <span style={{ flex: 1, fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>{account.label}</span>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </button>
+                          <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-bold)", color: isLow ? "var(--color-text-destructive)" : "var(--color-text-primary)", fontVariantNumeric: "tabular-nums" }}>£{account.balance.toFixed(2)}</span>
+                              {isLow && <Tag variant="default">Low</Tag>}
                             </div>
+                            {account.showTopUp && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setStandaloneTopUpAccount(account.id); setTopUpAmount(10); setShowStandaloneTopUp(true); setStandaloneTopUpAddedToBasket(false); setStandaloneTopUpSuccess(false); }}
+                                style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+                              >
+                                <span style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-brand)" }}>Top up</span>
+                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="var(--color-text-brand)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                              </button>
+                            )}
                           </div>
-                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </button>
+                        </Card>
                       </div>
-                    ))}
-                    <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />
-                    <button onClick={() => { setBookingsFilter("upcoming"); setSubPage("my-bookings"); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "12px 16px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-brand)" }}>View all</span>
-                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="var(--color-text-brand)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </button>
-                  </Card>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Browse */}
-              <div>
+              <div ref={browseSectionRef}>
                 <div style={{ padding: "0 16px", marginBottom: 10 }}>
-                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Explore & book</div>
+                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>Browse &amp; book</div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 16px" }}>
                   {[
-                    { id: "clubs",           label: "Clubs",          icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,             onClick: () => { setBrowseFilter("clubs"); setSubPage("browse"); } },
-                    { id: "wraparound",      label: "Wraparound",     icon: <SunMoon size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,       onClick: () => { setBrowseFilter("wraparound"); setSubPage("browse"); } },
-                    { id: "meals",           label: "Meals",          icon: <Utensils size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,            onClick: () => {} },
-                    { id: "trips",           label: "Trips",          icon: <Bus size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,                  onClick: () => { setBrowseFilter("trips"); setSubPage("browse"); } },
-                    { id: "parents-evening", label: "Parents' eve",   icon: (
-                      <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-                        <rect x="3" y="5" width="22" height="19" rx="2.5" stroke="var(--color-grey-900)" strokeWidth="1.5" />
-                        <path d="M3 11H25" stroke="var(--color-grey-900)" strokeWidth="1.5" />
-                        <path d="M9 3V6" stroke="var(--color-grey-900)" strokeWidth="1.5" strokeLinecap="round" />
-                        <path d="M19 3V6" stroke="var(--color-grey-900)" strokeWidth="1.5" strokeLinecap="round" />
-                        <circle cx="10" cy="17" r="1.8" fill="var(--color-grey-900)" opacity="0.8" />
-                        <circle cx="18" cy="17" r="1.8" fill="var(--color-grey-900)" opacity="0.8" />
+                    { id: "clubs",           label: "Clubs",             sub: "11 available",                icon: <Shapes size={20} color="var(--color-brand-600)" strokeWidth={1.5} />,      onClick: () => { setBrowseFilter("clubs"); setSubPage("browse"); },      variant: "BC" },
+                    { id: "wraparound",      label: "Wraparound",        sub: "6 available",                 icon: <SunMoon size={20} color="var(--color-brand-600)" strokeWidth={1.5} />,     onClick: () => { setBrowseFilter("wraparound"); setSubPage("browse"); }, variant: "BC" },
+                    { id: "meals",           label: "Meals",             sub: "Next week's menu available",  icon: <Utensils size={20} color="var(--color-brand-600)" strokeWidth={1.5} />,    onClick: () => {},                                                        variant: "BC" },
+                    { id: "trips",           label: "Trips",             sub: "1 open to book",              icon: <Bus size={20} color="var(--color-brand-600)" strokeWidth={1.5} />,          onClick: () => { setBrowseFilter("trips"); setSubPage("browse"); },       variant: "BC" },
+                    { id: "school-shop",     label: "School shop",       sub: "5 new items",                 icon: <ShoppingBag size={20} color="var(--color-brand-600)" strokeWidth={1.5} />, onClick: () => {},                                                        variant: "BC" },
+                    { id: "parents-evening", label: "Parents' evening",  sub: "Booking opens 12 Jun",        icon: (
+                      <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+                        <rect x="3" y="5" width="22" height="19" rx="2.5" stroke="var(--color-brand-600)" strokeWidth="1.5" />
+                        <path d="M3 11H25" stroke="var(--color-brand-600)" strokeWidth="1.5" />
+                        <path d="M9 3V6" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M19 3V6" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" />
+                        <circle cx="10" cy="17" r="1.8" fill="var(--color-brand-600)" opacity="0.8" />
+                        <circle cx="18" cy="17" r="1.8" fill="var(--color-brand-600)" opacity="0.8" />
                       </svg>
-                    ), onClick: () => { setBrowseFilter("parents-evening"); setSubPage("browse"); } },
-                    { id: "school-shop",     label: "School shop",    icon: <ShoppingBag size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,          onClick: () => {} },
-                  ].map((item) => (
-                    <Card key={item.id} padding="none" style={{ cursor: "pointer" }} onClick={item.onClick}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "16px 12px" }}>
-                        {item.icon}
-                        <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", textAlign: "center", lineHeight: 1.3 }}>{item.label}</div>
-                      </div>
-                    </Card>
-                  ))}
+                    ), onClick: () => { setBrowseFilter("parents-evening"); setSubPage("browse"); }, variant: "BC" },
+                  ].map((item) => {
+                    const label = null; // unused — rendered inline below
+
+                    // Option A — tonal header strip, icon inside, label below
+                    if (item.variant === "A") return (
+                      <Card key={item.id} padding="none" style={{ cursor: "pointer", overflow: "hidden" }} onClick={item.onClick}>
+                        <div style={{ background: item.headerBg, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px 12px 14px" }}>
+                          {item.icon}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 12px 14px" }}>
+                          {label}
+                        </div>
+                      </Card>
+                    );
+
+                    // Option B — top accent line, layout unchanged
+                    if (item.variant === "B") return (
+                      <Card key={item.id} padding="none" style={{ cursor: "pointer", borderTop: `4px solid ${item.lineBg}`, overflow: "hidden" }} onClick={item.onClick}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "16px 12px" }}>
+                          {item.icon}
+                          {label}
+                        </div>
+                      </Card>
+                    );
+
+                    // Option BC — centred, no accent strip
+                    if (item.variant === "BC") return (
+                      <Card key={item.id} padding="none" style={{ cursor: "pointer" }} onClick={item.onClick}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 12px 10px", textAlign: "center" }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {item.icon}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", lineHeight: 1.3 }}>{item.label}</div>
+                            <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", marginTop: 2, lineHeight: 1.3 }}>{item.sub}</div>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+
+                    // Option C — layered shadow depth, layout unchanged
+                    if (item.variant === "C") return (
+                      <Card key={item.id} padding="none" style={{ cursor: "pointer", boxShadow: "0 4px 12px -2px rgba(0,0,0,0.10), 0 1px 4px -1px rgba(0,0,0,0.06)" }} onClick={item.onClick}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "16px 12px" }}>
+                          {item.icon}
+                          {label}
+                        </div>
+                      </Card>
+                    );
+
+                    // Default — no treatment
+                    return (
+                      <Card key={item.id} padding="none" style={{ cursor: "pointer" }} onClick={item.onClick}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "16px 12px" }}>
+                          {item.icon}
+                          {label}
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -4575,7 +5112,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 })()}
                 <button onClick={() => { setActiveTab("book-pay"); setBrowseFilter("clubs"); setSubPage("browse"); }} style={{ width: "100%", background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0FAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Shapes size={20} color="var(--color-brand-600)" strokeWidth={1.5} />
+                    <Shapes size={24} color="var(--color-brand-600)" strokeWidth={1.5} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333" }}>New clubs available for summer term</div>
@@ -4585,7 +5122,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 </button>
                 <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0FAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10C4 10 7 16 10 16C13 16 16 4 16 4" stroke="var(--color-brand-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    <svg width="24" height="24" viewBox="0 0 20 20" fill="none"><path d="M4 10C4 10 7 16 10 16C13 16 16 4 16 4" stroke="var(--color-brand-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333" }}>PE kit needed – Tuesday</div>
@@ -4600,7 +5137,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0FAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Bus size={20} color="var(--color-brand-600)" strokeWidth={1.5} />
+                    <Bus size={24} color="var(--color-brand-600)" strokeWidth={1.5} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333" }}>Science Museum trip</div>
@@ -4610,7 +5147,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 </div>
                 <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0FAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Shapes size={20} color="var(--color-brand-600)" strokeWidth={1.5} />
+                    <Shapes size={24} color="var(--color-brand-600)" strokeWidth={1.5} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333" }}>Choir practice</div>
@@ -4620,7 +5157,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 </div>
                 <div style={{ background: "#fff", border: "1px solid #e8e8e8", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0FAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="4" y="6" width="12" height="9" rx="1.5" stroke="var(--color-brand-600)" strokeWidth="1.5" /><path d="M4 9H16" stroke="var(--color-brand-600)" strokeWidth="1.3" /><path d="M8 6V4" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" /><path d="M12 6V4" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" /></svg>
+                    <svg width="24" height="24" viewBox="0 0 20 20" fill="none"><rect x="4" y="6" width="12" height="9" rx="1.5" stroke="var(--color-brand-600)" strokeWidth="1.5" /><path d="M4 9H16" stroke="var(--color-brand-600)" strokeWidth="1.3" /><path d="M8 6V4" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" /><path d="M12 6V4" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" /></svg>
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333" }}>Parents' evening</div>
@@ -4691,7 +5228,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       return (
                         <Card key={school} padding="none" style={{ marginBottom: 10, cursor: "pointer" }} onClick={() => { setMessagesSchool(school); setMessagesFilter("inbox"); }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px" }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#F0FAF3", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                               <School size={20} color="var(--color-brand-600)" strokeWidth={1.5} />
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -5265,7 +5802,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         </div>
 
         {!selectedMessage && !showCompose && (!myChildPage || myChildPage === "absences") && (
-          <BottomNavBar activeTab={subPage ? "book-pay" : activeTab} onTabChange={(tab) => { setSubPage(null); setSelectedBookingItem(null); setSelectedMessage(null); setMessagesSchool(null); setShowCompose(false); setActiveTab(tab); }} badges={{ messages: unreadCount }} />
+          <BottomNavBar activeTab={subPage ? "book-pay" : activeTab} onTabChange={(tab) => { setSubPage(null); setSelectedBookingItem(null); setSelectedMessage(null); setMessagesSchool(null); setShowCompose(false); setActiveTab(tab); }} badges={{ messages: unreadCount, "book-pay": basketCount }} />
         )}
 
         {/* Home indicator */}
@@ -5275,7 +5812,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#fafafa",
+            background: "var(--color-white)",
             overflow: "hidden",
           }}
         >
@@ -5289,63 +5826,98 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           />
         </div>
 
-        {/* Standalone top-up screen */}
+        {/* Standalone top-up sheet */}
         {showStandaloneTopUp && (
-          <div style={{ position: "absolute", inset: 0, zIndex: 90, display: "flex", flexDirection: "column", background: "var(--color-white)" }}>
-            <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
-              <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 12px", flexShrink: 0, background: "var(--color-white)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
-              <button onClick={() => setShowStandaloneTopUp(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </button>
-              <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Top up account</span>
-              <div style={{ width: 44 }} />
-            </div>
+          <div onClick={() => { setShowStandaloneTopUp(false); setStandaloneTopUpSuccess(false); }} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 90, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", height: 520, display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px", flexShrink: 0 }}>
+                <button onClick={() => { setShowStandaloneTopUp(false); setStandaloneTopUpSuccess(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                </button>
+              </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "16px", background: "var(--color-bg-secondary)" }}>
-              <Card padding="medium">
-                <div style={{ textAlign: "center", fontSize: "var(--font-size-4)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", marginBottom: 20 }}>
-                  {standaloneTopUpAccount === "meals" ? "Meals account" : "Wraparound care account"}
-                </div>
+              {!standaloneTopUpSuccess && (
+                <>
+                  <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 8px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+                    <div style={{ textAlign: "center", marginBottom: 32 }}>
+                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>
+                        Top up Molly's {standaloneTopUpAccount === "meals" ? "Meals" : "Wraparound"}
+                      </div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>
+                        Current balance · £{(standaloneTopUpAccount === "meals" ? mealsBalance : wraparoundBalance).toFixed(2)}
+                      </div>
+                    </div>
 
-                <div style={{ textAlign: "center", marginBottom: 6 }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                    <span style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
-                    <input
-                      type="number"
-                      value={topUpAmount}
-                      onChange={(e) => { const v = parseInt(e.target.value) || 0; setTopUpAmount(Math.max(1, v)); }}
-                      style={{ fontSize: "var(--font-size-8)", fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(topUpAmount).length * 28 + 16}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
-                    />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 12 }}>
+                      <button onClick={() => { if (topUpAmount <= 2) flashTopUpMinError(); else setTopUpAmount(topUpAmount - 1); }} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>−</button>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 2, border: `1px solid ${(topUpAmount < 2 || topUpMinFlash) ? "var(--color-destructive-500)" : "var(--color-border-default)"}`, borderRadius: 8, padding: "6px 20px", background: "var(--color-white)", transition: "border-color 0.15s ease" }}>
+                        <span style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={topUpAmount}
+                          onChange={(e) => { const v = parseInt(e.target.value) || 0; setTopUpAmount(Math.max(0, v)); }}
+                          style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(topUpAmount).length * 28}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
+                        />
+                      </div>
+                      <button onClick={() => setTopUpAmount(topUpAmount + 1)} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>+</button>
+                    </div>
+                    <div style={{ height: 22, textAlign: "center", marginBottom: 24 }}>
+                      {(topUpAmount < 2 || topUpMinFlash) && (
+                        <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-destructive)" }}>Minimum top-up is £2</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                      {[5, 10, 20].map((inc) => (
+                        <button key={inc} onClick={() => setTopUpAmount(topUpAmount + inc)} className="btn-pill" style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", cursor: "pointer", fontFamily: "inherit" }}>
+                          +£{inc}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div style={{ textAlign: "center", fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)", marginBottom: 24 }}>Tap to edit amount</div>
-
-                <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                  {[5, 10, 20].map((inc) => (
-                    <button key={inc} onClick={() => setTopUpAmount(topUpAmount + inc)} className="btn-pill" style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", cursor: "pointer", fontFamily: "inherit" }}>
-                      +£{inc}
+                  <div style={{ padding: "12px 16px 28px", flexShrink: 0, background: "var(--color-white)", display: "flex", flexDirection: "column", gap: 10 }}>
+                    <button onClick={() => { if (topUpAmount < 2) setTopUpAmount(2); setShowStandaloneTopUpStripeSheet(true); }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      {topUpAmount < 2 ? "Top up minimum £2" : `Top up £${topUpAmount}.00 now`}
                     </button>
-                  ))}
-                </div>
-              </Card>
+                    <button onClick={() => { if (topUpAmount < 2) setTopUpAmount(2); setStandaloneTopUpAddedToBasket(true); setTimeout(() => { setStandaloneTopUpAddedToBasket(false); setShowStandaloneTopUp(false); }, 1500); }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      Add to basket
+                    </button>
+                  </div>
+                </>
+              )}
+              {standaloneTopUpSuccess && (
+                <>
+                  <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 24px 8px" }}>
+                    <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-success-050)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, flexShrink: 0 }}>
+                      <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
+                        <path d="M10 18L16 24L26 12" stroke="var(--color-success-700)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <h1 style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 24px", textAlign: "center" }}>Top-up successful</h1>
+                    <div style={{ background: "var(--color-bg-secondary)", borderRadius: 12, padding: 20, width: "100%", border: "1px solid var(--color-grey-100)", textAlign: "center" }}>
+                      <div style={{ fontSize: "var(--font-size-8)", fontWeight: 700, color: "var(--color-text-primary)", letterSpacing: -1, lineHeight: 1, marginBottom: 10 }}>£{topUpAmount}.00</div>
+                      <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-secondary)", marginBottom: 20, textWrap: "balance" }}>
+                        Added to {standaloneTopUpAccount === "meals" ? "Meals" : "Wraparound"} for Molly
+                      </div>
+                      <div style={{ height: 1, background: "var(--color-grey-100)", marginBottom: 16 }} />
+                      <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-tertiary)" }}>
+                        New balance · <span style={{ fontWeight: 600, color: "var(--color-text-secondary)" }}>£{(standaloneTopUpAccount === "meals" ? mealsBalance : wraparoundBalance).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 16px 28px", flexShrink: 0, background: "var(--color-white)" }}>
+                    <button onClick={() => { setShowStandaloneTopUp(false); setStandaloneTopUpSuccess(false); setTxHistoryAccount(standaloneTopUpAccount); setSubPage("tx-history"); }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      View transaction history
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
-
-            <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)", display: "flex", flexDirection: "column", gap: 10 }}>
-              <button onClick={() => setShowStandaloneTopUpStripeSheet(true)} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Top up £{topUpAmount}.00 now
-              </button>
-              <button onClick={() => { setStandaloneTopUpAddedToBasket(true); setTimeout(() => { setStandaloneTopUpAddedToBasket(false); setShowStandaloneTopUp(false); }, 1500); }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                Add to basket
-              </button>
-            </div>
-            <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
-              <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
-            </div>
-
             {showStandaloneTopUpStripeSheet && (
-              <div onClick={() => setShowStandaloneTopUpStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
+              <div onClick={() => setShowStandaloneTopUpStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 10 }}>
                 <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
                   <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
                     <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
@@ -5417,48 +5989,6 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     </div>
                     <span style={{ fontSize: "var(--font-size-3)", color: "#999" }}>Confirm with Face ID</span>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {standaloneTopUpSuccess && (
-              <div style={{ position: "absolute", inset: 0, zIndex: 50, background: "var(--color-white)", display: "flex", flexDirection: "column" }}>
-                <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
-                  <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 16px 0", flexShrink: 0 }}>
-                  <button onClick={() => { setShowStandaloneTopUp(false); setStandaloneTopUpSuccess(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                  </button>
-                </div>
-
-                <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 24px 20px", background: "var(--color-bg-secondary)" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-success-050)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, flexShrink: 0 }}>
-                    <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
-                      <path d="M10 18L16 24L26 12" stroke="var(--color-success-700)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <h1 style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)", margin: "0 0 28px", textAlign: "center" }}>Top-up successful</h1>
-
-                  <div style={{ background: "var(--color-white)", borderRadius: 12, padding: 24, width: "100%", border: "1px solid var(--color-grey-100)", textAlign: "center" }}>
-                    <div style={{ fontSize: "var(--font-size-8)", fontWeight: 700, color: "var(--color-text-primary)", letterSpacing: -1, lineHeight: 1, marginBottom: 10 }}>£{topUpAmount}.00</div>
-                    <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-secondary)", marginBottom: 20, textWrap: "balance" }}>
-                      Added to {standaloneTopUpAccount === "meals" ? "Meals" : "Wraparound"} for Molly
-                    </div>
-                    <div style={{ height: 1, background: "var(--color-grey-100)", marginBottom: 16 }} />
-                    <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-tertiary)" }}>
-                      New balance · <span style={{ fontWeight: 600, color: "var(--color-text-secondary)" }}>£{(standaloneTopUpAccount === "meals" ? mealsBalance : wraparoundBalance).toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)" }}>
-                  <button onClick={() => { setShowStandaloneTopUp(false); setStandaloneTopUpSuccess(false); setTxHistoryAccount(standaloneTopUpAccount); setSubPage("tx-history"); }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-                    View transaction history
-                  </button>
-                </div>
-                <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
-                  <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
                 </div>
               </div>
             )}
@@ -6292,9 +6822,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       <MobileDatePicker
                         label="Date"
                         value={absenceStartDate}
-                        min="2026-04-21"
                         error={absenceErrors.startDate}
-                        onChange={(v) => { setAbsenceStartDate(v); setAbsenceErrors(prev => ({ ...prev, startDate: undefined })); }}
+                        onOpen={() => setAbsenceDatePickerActive("start")}
                       />
                       {absenceErrors.startDate && <div style={{ padding: "0 16px 10px", fontSize: "var(--font-size-1)", color: "var(--color-text-destructive)" }}>{absenceErrors.startDate}</div>}
                     </>)}
@@ -6303,18 +6832,16 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       <MobileDatePicker
                         label="Start date"
                         value={absenceStartDate}
-                        min="2026-04-21"
                         error={absenceErrors.startDate}
-                        onChange={(v) => { setAbsenceStartDate(v); setAbsenceErrors(prev => ({ ...prev, startDate: undefined })); }}
+                        onOpen={() => setAbsenceDatePickerActive("start")}
                       />
                       {absenceErrors.startDate && <div style={{ padding: "0 16px 10px", fontSize: "var(--font-size-1)", color: "var(--color-text-destructive)" }}>{absenceErrors.startDate}</div>}
                       <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />
                       <MobileDatePicker
                         label="End date"
                         value={absenceEndDate}
-                        min={absenceStartDate || "2026-04-21"}
                         error={absenceErrors.endDate}
-                        onChange={(v) => { setAbsenceEndDate(v); setAbsenceErrors(prev => ({ ...prev, endDate: undefined })); }}
+                        onOpen={() => setAbsenceDatePickerActive("end")}
                       />
                       {absenceErrors.endDate && <div style={{ padding: "0 16px 10px", fontSize: "var(--font-size-1)", color: "var(--color-text-destructive)" }}>{absenceErrors.endDate}</div>}
                     </>)}
@@ -6334,7 +6861,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     <MobileTimePicker
                       label="Start time"
                       value={absenceStartTime}
-                      onChange={setAbsenceStartTime}
+                      onOpen={() => setAbsenceTimePickerActive("start")}
                     />
 
                     <div style={{ height: 1, background: "var(--color-grey-100)", margin: "0 16px" }} />
@@ -6342,7 +6869,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     <MobileTimePicker
                       label="End time"
                       value={absenceEndTime}
-                      onChange={setAbsenceEndTime}
+                      onOpen={() => setAbsenceTimePickerActive("end")}
                     />
                   </Card>
                 </div>
@@ -6423,6 +6950,35 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   ) : `Send ${selectedChild.name}'s report`}
                 </Button>
               </div>
+
+              {/* Date picker sheet */}
+              {absenceDatePickerActive && (
+                <DatePickerSheet
+                  label={absenceDatePickerActive === "start" && !absenceMultiDay ? "Date" : absenceDatePickerActive === "start" ? "Start date" : "End date"}
+                  value={absenceDatePickerActive === "start" ? absenceStartDate : absenceEndDate}
+                  min={absenceDatePickerActive === "start" ? "2026-04-21" : (absenceStartDate || "2026-04-21")}
+                  onChange={(v) => {
+                    if (absenceDatePickerActive === "start") {
+                      setAbsenceStartDate(v);
+                      setAbsenceErrors(prev => ({ ...prev, startDate: undefined }));
+                    } else {
+                      setAbsenceEndDate(v);
+                      setAbsenceErrors(prev => ({ ...prev, endDate: undefined }));
+                    }
+                  }}
+                  onClose={() => setAbsenceDatePickerActive(null)}
+                />
+              )}
+
+              {/* Time picker sheet */}
+              {absenceTimePickerActive && (
+                <TimePickerSheet
+                  label={absenceTimePickerActive === "start" ? "Start time" : "End time"}
+                  value={absenceTimePickerActive === "start" ? absenceStartTime : absenceEndTime}
+                  onChange={absenceTimePickerActive === "start" ? setAbsenceStartTime : setAbsenceEndTime}
+                  onClose={() => setAbsenceTimePickerActive(null)}
+                />
+              )}
 
               {/* Cancel confirmation sheet */}
               {showAbsenceCancelSheet && (
@@ -6560,6 +7116,14 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         )}
         </>)}
         </>)}
+
+        {/* Basket toast */}
+        {basketToast && (
+          <div style={{ position: "absolute", bottom: 84, left: 16, right: 16, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: 12, background: "var(--color-grey-900)", opacity: basketToastFading ? 0 : 1, transition: "opacity 0.4s", pointerEvents: basketToastFading ? "none" : "auto" }}>
+            <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-white)", flex: 1, marginRight: 12 }}>{basketToast.title} added for {basketToast.child}</span>
+            <button onClick={() => { setBasketToastFading(true); setTimeout(() => { setBasketToast(null); setBasketToastFading(false); }, 400); setSubPage(null); setFlowStep(null); setDetailPage(null); setActiveTab("book-pay"); }} style={{ background: "none", border: "none", color: "var(--color-brand-300)", fontSize: "var(--font-size-3)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0, flexShrink: 0 }}>View basket</button>
+          </div>
+        )}
       </div>
     </div>
     </>
