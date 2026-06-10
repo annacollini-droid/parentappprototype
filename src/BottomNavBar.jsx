@@ -42,7 +42,9 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
       >
         {tabs.map(({ id, label, Icon }) => {
           const isActive = active === id;
-          const badge = badges[id];
+          const rawBadge = badges[id];
+          const badge = typeof rawBadge === "object" && rawBadge !== null ? rawBadge : { count: rawBadge, variant: "brand" };
+          const badgeBg = badge.variant === "warning" ? "var(--color-warning-600)" : "var(--color-brand-600)";
           return (
             <button
               key={id}
@@ -88,7 +90,21 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
                       color={isActive ? ACTIVE_COLOR : INACTIVE_COLOR}
                     />
                   </div>
-                  {badge > 0 && (
+                  {badge.dot ? (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 3,
+                        right: 7,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "var(--color-warning-600)",
+                        border: "1.5px solid var(--color-white)",
+                        transform: "translate(50%, -50%)",
+                      }}
+                    />
+                  ) : badge.count > 0 ? (
                     <div
                       style={{
                         position: "absolute",
@@ -97,7 +113,7 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
                         minWidth: 14,
                         height: 14,
                         borderRadius: 7,
-                        background: "var(--color-brand-600)",
+                        background: badgeBg,
                         color: "#fff",
                         fontSize: 8,
                         fontWeight: 700,
@@ -108,9 +124,9 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
                         transform: "translate(50%, -50%)",
                       }}
                     >
-                      {badge}
+                      {badge.count}
                     </div>
-                  )}
+                  ) : null}
                 </div>
                 <span
                   style={{
