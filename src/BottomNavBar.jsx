@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { House, UserRound, CreditCard, Mail } from "lucide-react";
+import { CalendarDays, UserRound, CreditCard, Mail } from "lucide-react";
 
 const tabs = [
-  { id: "home", label: "Home", Icon: House },
+  { id: "home", label: "Coming up", Icon: CalendarDays },
   { id: "my-child", label: "My Child", Icon: UserRound },
   { id: "book-pay", label: "Book & Pay", Icon: CreditCard },
   { id: "messages", label: "Messages", Icon: Mail },

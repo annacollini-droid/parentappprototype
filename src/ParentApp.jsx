@@ -329,6 +329,7 @@ const getClubScheduleDetailParts = (item, extras) => {
 const afterSchoolClubConfigs = {
   mon: {
     name: "Monday After School Club", timeDisplay: "Mondays", dayOrder: [1],
+    bookingModel: "daily",
     chargeOnAttendance: false, allowSignUpIfLowBalance: false, blockDeadlineLabel: "13 Apr", sameDayCutoff: "Book by 12:30 on the day",
     sessionDates: [
       { id: "as-mon-apr14", date: "Mon 14 Apr", active: true },
@@ -348,6 +349,7 @@ const afterSchoolClubConfigs = {
   },
   thuRecorder: {
     name: "Recorder Club", timeDisplay: "Thursdays", dayOrder: [4],
+    bookingModel: "both",
     chargeOnAttendance: false, allowSignUpIfLowBalance: false, isFree: true, blockDeadlineLabel: "16 Apr", sameDayCutoff: "Book by 12:30 on the day",
     sessionDates: [
       { id: "as-rec-apr17", date: "Thu 17 Apr", active: true },
@@ -367,6 +369,7 @@ const afterSchoolClubConfigs = {
   },
   wedFootball: {
     name: "Football After School Club", timeDisplay: "Wednesdays", dayOrder: [3],
+    bookingModel: "daily",
     chargeOnAttendance: false, allowSignUpIfLowBalance: true, blockDeadlineLabel: "15 Apr", sameDayCutoff: "Book by 12:30 on the day",
     sessionDates: [
       { id: "as-foot-apr16", date: "Wed 16 Apr", active: true },
@@ -664,25 +667,33 @@ function BottomNav({ activeTab, onTabChange, unreadCount }) {
   );
 }
 
-function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, location, clubLead, periodLabel, sessionCount, dates, isFree, total, fromAccount, onClose, onGoToBookings, confirmedDatesExpanded, setConfirmedDatesExpanded, bookingNudgeRating, setBookingNudgeRating, newLayout, paymentComplete, amountPaidNow, paymentModel, minimumContribution, outstanding, paymentDeadline, instalment, depositPaid, balanceRemaining, feedbackNoun = "club" }) {
+function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, location, clubLead, periodLabel, sessionCount, dates, isFree, total, fromAccount, onClose, onGoToBookings, confirmedDatesExpanded, setConfirmedDatesExpanded, bookingNudgeRating, setBookingNudgeRating, newLayout, paymentComplete, amountPaidNow, paymentModel, minimumContribution, outstanding, paymentDeadline, instalment, depositPaid, balanceRemaining, accountBalanceAfter, onTopUp, feedbackNoun = "club", sessionUnit = "session", dateList, startYear = 2026 }) {
   const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const futureDates = (dates || []).filter(d => d.active !== false);
 
   const renderDates = () => {
+    // Group by month, track chronological order from the data, and derive year-by-month so academic-year clubs (Sep–Jul) display correct years.
     const groups = {};
+    const monthOrderInData = [];
+    const yearByMonth = {};
+    let currentYear = startYear;
+    let prevMonthIdx = -1;
     futureDates.forEach(d => {
       const parts = d.label.split(" ");
       const month = parts[parts.length - 1];
+      const monthIdx = monthOrder.indexOf(month);
+      if (prevMonthIdx >= 0 && monthIdx < prevMonthIdx) currentYear++;
+      prevMonthIdx = monthIdx;
+      if (!(month in yearByMonth)) { yearByMonth[month] = currentYear; monthOrderInData.push(month); }
       const dayDisplay = parts.slice(0, -1).join(" ");
       if (!groups[month]) groups[month] = [];
       groups[month].push({ ...d, dayDisplay });
     });
-    const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
     return (
       <div style={{ marginTop: 12, textAlign: "left" }}>
-        {sortedMonths.map((month, mi) => (
-          <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
-            <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 12 }}>{month} 2026</div>
+        {monthOrderInData.map((month, mi) => (
+          <div key={month} style={{ marginBottom: mi < monthOrderInData.length - 1 ? 20 : 0 }}>
+            <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 12 }}>{month} {yearByMonth[month]}</div>
             {groups[month].map(d => (
               <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
                 <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.label}</span>
@@ -720,11 +731,17 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
             <p style={{ fontSize: "var(--font-size-6)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.2, fontFamily: "'Inter', sans-serif" }}>{clubName}</p>
             <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.2 }}>For {childName}</p>
             <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
-            {(days || time) && <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 12px" }}>{[days ? expandDay(days) : null, time].filter(Boolean).join(" · ")}</p>}
+            {dateList && dateList.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, margin: "0 0 12px" }}>
+                {dateList.map(d => (
+                  <p key={d.id || d.label} style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{[d.label, d.time].filter(Boolean).join(" · ")}</p>
+                ))}
+              </div>
+            ) : (days || time) && <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 12px" }}>{[days ? expandDay(days) : null, time].filter(Boolean).join(" · ")}</p>}
             {sessionCount !== 1 && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12 }}>
-                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{sessionCount} sessions booked</span>
+                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{sessionCount} {sessionUnit}{sessionCount === 1 ? "" : "s"} booked</span>
                   <button onClick={() => setConfirmedDatesExpanded(!confirmedDatesExpanded)} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0, display: "flex", alignItems: "center", gap: 2 }}>
                     <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500 }}>View dates</span>
                     <ChevronDown size={14} color="var(--color-brand-600)" strokeWidth={2} style={{ transform: confirmedDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
@@ -770,13 +787,13 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
                 return (
                   <div style={{ background: "var(--color-grey-050)", borderRadius: 10, padding: "12px 14px", marginTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)" }}>Paid today</span>
+                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)" }}>Paid</span>
                       <span style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-secondary)", flexShrink: 0 }}>{fmt(depositPaid ?? total)}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>Balance remaining</div>
-                        {paymentDeadline && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>Pay before the trip</div>}
+                        <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>Outstanding</div>
+                        {paymentDeadline && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{`Full amount by ${paymentDeadline}`}</div>}
                       </div>
                       <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>{fmt(bal)}</span>
                     </div>
@@ -787,10 +804,22 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
               if (!isVariable) {
                 const displayAmount = paymentComplete && amountPaidNow != null ? amountPaidNow : total;
                 const label = isFree ? "Cost" : fromAccount ? "Charged to account" : paymentComplete ? "Remaining balance paid" : "Paid";
+                const showBalance = accountBalanceAfter != null && fromAccount && !isFree && accountBalanceAfter >= 0;
                 return (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--color-success-050)", borderRadius: 10, padding: "12px 14px", marginTop: 20 }}>
-                    <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-success-700)" }}>{label}</span>
-                    <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-success-700)" }}>{isFree ? "Free" : fmt(displayAmount)}</span>
+                  <div style={{ background: "var(--color-success-050)", borderRadius: 10, padding: "12px 14px", marginTop: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-success-700)" }}>{label}</span>
+                      <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-success-700)", flexShrink: 0 }}>{isFree ? "Free" : fmt(displayAmount)}</span>
+                    </div>
+                    {showBalance && (
+                      <>
+                        <div style={{ marginTop: 14 }} />
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>New balance</span>
+                          <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-secondary)" }}>{fmt(accountBalanceAfter)}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               }
@@ -827,7 +856,19 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
               );
             })()}
           </div>
+          {accountBalanceAfter != null && fromAccount && !isFree && accountBalanceAfter < 0 && (
+            <div style={{ background: "var(--color-warning-050)", borderRadius: 8, border: "1px solid var(--color-warning-050)", padding: "14px 16px", marginTop: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-warning)", marginBottom: 4 }}>Current balance</div>
+                  <div style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-warning)" }}>−£{Math.abs(accountBalanceAfter).toFixed(2)}</div>
+                </div>
+                <Button variant="secondary" size="small" onClick={onTopUp} style={{ height: "44px", flexShrink: 0 }}>Top up now</Button>
+              </div>
+            </div>
+          )}
         </div>
+        {!(accountBalanceAfter != null && accountBalanceAfter < 0) && (
         <div style={{ padding: "10px 16px 6px", textAlign: "center", borderTop: "1px solid var(--color-border-default)", background: "var(--color-white)", flexShrink: 0 }}>
           <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-disabled)", marginBottom: 6 }}>Was it easy to book this {feedbackNoun}?</div>
           <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
@@ -837,6 +878,7 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
           </div>
           {bookingNudgeRating && <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-disabled)", marginTop: 6 }}>Thanks for your feedback</div>}
         </div>
+        )}
         <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)" }}>
           <button onClick={onGoToBookings} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Go to my bookings</button>
         </div>
@@ -872,7 +914,31 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
           {(days || time || location || clubLead) && (
             <>
               <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
-              {(days || time) && <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 8px" }}>{[days, time].filter(Boolean).join(" · ")}</p>}
+              {(days || time) && (() => {
+                const isRange = days && days.includes(" – ");
+                if (isRange) {
+                  const [departPart, returnPart] = days.split(" – ");
+                  const monthYearMatch = returnPart.match(/([A-Za-z]+ \d{4})$/);
+                  const monthYear = monthYearMatch ? monthYearMatch[1] : "";
+                  const departDate = `${departPart} ${monthYear}`.trim();
+                  const timeParts = time ? time.split("–") : [];
+                  const departTime = timeParts[0]?.trim();
+                  const returnTime = timeParts[1]?.trim();
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 8 }}>
+                      <div>
+                        <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>Departs</p>
+                        <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", margin: 0 }}>{departDate}{departTime ? ` at ${departTime}` : ""}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>Returns</p>
+                        <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", margin: 0 }}>{returnPart}{returnTime ? ` at ${returnTime}` : ""}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                return <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 8px" }}>{[days, time].filter(Boolean).join(" · ")}</p>;
+              })()}
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 {location && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><MapPin size={14} color="var(--color-text-secondary)" strokeWidth={1.5} /><span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{location}</span></div>}
                 {clubLead && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Users size={14} color="var(--color-text-secondary)" strokeWidth={1.5} /><span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{clubLead}</span></div>}
@@ -884,7 +950,7 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
             <>
               <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)" }}>{sessionCount} sessions</span>
+                <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)" }}>{sessionCount} {sessionUnit}{sessionCount === 1 ? "" : "s"}</span>
                 <button onClick={() => setConfirmedDatesExpanded(!confirmedDatesExpanded)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                   <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2 }}>View dates</span>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: confirmedDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -926,7 +992,7 @@ const WEEKDAYS_SHORT = ["Mo","Tu","We","Th","Fr","Sa","Su"];
 
 function DatePickerSheet({ label, value, onChange, min, onClose }) {
   const selectedDate = value ? new Date(value + "T12:00:00") : null;
-  const [viewDate, setViewDate] = useState(() => selectedDate || new Date());
+  const [viewDate, setViewDate] = useState(() => selectedDate || new Date(2026, 5, 30));
 
   useEffect(() => {
     if (selectedDate) setViewDate(selectedDate);
@@ -951,16 +1017,16 @@ function DatePickerSheet({ label, value, onChange, min, onClose }) {
     d.getMonth() === selectedDate.getMonth() &&
     d.getDate() === selectedDate.getDate();
   const isTodayCell = (d) => {
-    const t = new Date();
+    const t = new Date(2026, 5, 30);
     return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
   };
 
   const toStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   const shiftMonth = (delta) => { const d = new Date(viewDate); d.setDate(1); d.setMonth(d.getMonth() + delta); setViewDate(d); };
-  const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - 1 + i);
+  const yearOptions = Array.from({ length: 6 }, (_, i) => 2025 + i);
 
   const handleDaySelect = (d) => { if (isDisabled(d)) return; onChange(toStr(d)); onClose(); };
-  const handleToday = () => { const t = new Date(); onChange(toStr(t)); setViewDate(t); onClose(); };
+  const handleToday = () => { const t = new Date(2026, 5, 30); onChange(toStr(t)); setViewDate(t); onClose(); };
 
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 15 }}>
@@ -1226,6 +1292,8 @@ export default function ParentApp() {
   const [bkAboutExpanded, setBkAboutExpanded] = useState(false);
   const [bkPatternApplied, setBkPatternApplied] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState(new Set());
+  const [selectedWeeks, setSelectedWeeks] = useState({}); // instance picker (weekly/monthly/half-term): { instanceId: true }
+  const [expandedInstances, setExpandedInstances] = useState({}); // accordion expansion: { instanceId: true }
   const browseSectionRef = useRef(null);
   const bkScrollRef = useRef(null);
   const bkWeek2Ref = useRef(null);
@@ -1259,6 +1327,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const [topUpCardFilled, setTopUpCardFilled] = useState(false);
   const [toppedUpAmount, setToppedUpAmount] = useState(0);
   const [mealsTopUpAmount, setMealsTopUpAmount] = useState(0);
+  const [milkTopUpAmount, setMilkTopUpAmount] = useState(0);
   const [showTopUpStripeSheet, setShowTopUpStripeSheet] = useState(false);
   const [showTopUpStripeApplePay, setShowTopUpStripeApplePay] = useState(false);
   const [showStandaloneTopUp, setShowStandaloneTopUp] = useState(false);
@@ -1327,6 +1396,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const [consentToast, setConsentToast] = useState(null);
   const [consentToastFading, setConsentToastFading] = useState(false);
   const [consentFilter, setConsentFilter] = useState("pending");
+  const [consentPageChild, setConsentPageChild] = useState(children[0]);
   const [showProfile, setShowProfile] = useState(false);
   const [showCalendarSync, setShowCalendarSync] = useState(false); // Coming Up — subscribe-to-calendar placeholder
   const [profileChild, setProfileChild] = useState(null);
@@ -1361,7 +1431,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,
     sub: "10 Apr – 17 Jul 2026",
     dateRange: "10 Apr – 17 Jul 2026",
-    nextSession: "Fri 10 Apr",
+    nextSession: "Fri 3 Jul",
     days: "Fri",
     time: "15:30–16:30",
     sessions: 10,
@@ -1415,7 +1485,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     status: "confirmed",
     icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,
     sub: "6 Apr – 17 Jul 2026",
-    nextSession: "Tue 30 Jun",
+    nextSession: "Tue 7 Jul",
     child: "Molly",
     childColour: children[0].avatarColour,
     sessions: 11,
@@ -1438,8 +1508,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   // --- Absence reporting ---
   const [myChildPage, setMyChildPage] = useState(null); // null | "absence-form" | "absence-success"
   const [absenceMultiDay, setAbsenceMultiDay] = useState(false);
-  const [absenceStartDate, setAbsenceStartDate] = useState("2026-04-22");
-  const [absenceEndDate, setAbsenceEndDate] = useState("2026-04-23");
+  const [absenceStartDate, setAbsenceStartDate] = useState("2026-06-30");
+  const [absenceEndDate, setAbsenceEndDate] = useState("2026-07-01");
   const [absenceStartTime, setAbsenceStartTime] = useState("08:50");
   const [absenceEndTime, setAbsenceEndTime] = useState("15:15");
   const [absenceReason, setAbsenceReason] = useState("");
@@ -1459,7 +1529,11 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   // Race-at-commit (full states Part B): clubs whose space was lost at the commit tap, plus the "just filled up" sheet.
   const [raceFilledIds, setRaceFilledIds] = useState(() => new Set());      // club ids that raced fully full (whole club gone)
   const [racedPeriodIds, setRacedPeriodIds] = useState(() => new Set());    // period ids that raced full (single option gone, club may still have others)
-  const [raceSheet, setRaceSheet] = useState(null); // null | { scope: "club"|"option", title, optionLabel?, periodId? }
+  const [racedInstanceIds, setRacedInstanceIds] = useState(() => new Set()); // week/month/half-term instance ids that raced full during commit (instance picker)
+  // Contribution-sheet overrides for variable + instance picker — picker sets scaled min/max (N × period values); detail-page flows leave these null.
+  const [partialMinOverride, setPartialMinOverride] = useState(null);
+  const [partialMaxOverride, setPartialMaxOverride] = useState(null);
+  const [raceSheet, setRaceSheet] = useState(null); // null | { scope: "club"|"option"|"instance", title, optionLabel?, periodId?, reducedTotal?, reducedCount? }
   useEffect(() => {
     if (!basketToast) return;
     const t = setTimeout(() => {
@@ -1517,8 +1591,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
   const resetAbsenceForm = () => {
     setAbsenceMultiDay(false);
-    setAbsenceStartDate("2026-04-22");
-    setAbsenceEndDate("2026-04-23");
+    setAbsenceStartDate("2026-06-30");
+    setAbsenceEndDate("2026-07-01");
     setAbsenceStartTime("08:50");
     setAbsenceEndTime("15:15");
     setAbsenceReason("");
@@ -1549,24 +1623,24 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     }, 900);
   };
   const allNotices = [
-    { id: "n1", type: "Consent", title: "Sports Day participation 2026", child: "Molly", school: "Oakwood Primary", description: "Sports Day will take place on Friday 26 Jun on the school field.\n\nAll children are welcome to participate in running, throwing and jumping events. Please ensure your child comes in their PE kit and brings sunscreen and a water bottle.\n\nPlease give or decline consent below.", date: "27 Feb 2026" },
-    { id: "n2", type: "Consent", title: "Science trip – Natural History Museum", child: "Ethan", school: "Riverside Secondary", description: "Year 9 have been offered a trip to the Natural History Museum on Friday 4 Apr.\n\nThe cost is £18 per student, covering coach travel and a guided workshop. Students will need a packed lunch and should wear school uniform.\n\nDeparture: 8:15am from the bus bay. Expected return: 4:00pm.\n\nPlease give or decline consent below.", date: "26 Feb 2026" },
+    { id: "n1", type: "Consent", title: "Sports Day participation 2026", child: "Molly", school: "Oakwood Primary", description: "Sports Day will take place on Friday 26 Jun on the school field.\n\nAll children are welcome to participate in running, throwing and jumping events. Please ensure your child comes in their PE kit and brings sunscreen and a water bottle.\n\nPlease give or decline consent below.", date: "2 Jun 2026" },
+    { id: "n2", type: "Consent", title: "Science trip – Natural History Museum", child: "Ethan", school: "Riverside Secondary", description: "Year 9 have been offered a trip to the Natural History Museum on Friday 4 Apr.\n\nThe cost is £18 per student, covering coach travel and a guided workshop. Students will need a packed lunch and should wear school uniform.\n\nDeparture: 8:15am from the bus bay. Expected return: 4:00pm.\n\nPlease give or decline consent below.", date: "5 Jun 2026" },
     { id: "n3", type: "Consent", title: "School photo permissions 2025/26", child: "Lucas", school: "Oakwood Primary", description: "We would like your permission to use photographs of your child in school publications, on the school website, and on our social media channels.\n\nPhotos are used to celebrate achievements and school events. No child's full name is published alongside their image.\n\nYou may withdraw consent at any time by contacting the school office.\n\nPlease give or decline consent below.", date: "20 Feb 2026" },
     { id: "n4", type: "Consent", title: "Sports Day participation 2026", child: "Lucas", school: "Oakwood Primary", description: "Sports Day will take place on Friday 26 Jun on the school field.\n\nAll children are welcome to participate in running, throwing and jumping events. Please ensure your child comes in their PE kit and brings sunscreen and a water bottle.\n\nPlease give or decline consent below.", date: "27 Feb 2026" },
     { id: "n5", type: "Consent", title: "After-school cookery club – Summer term", child: "Lucas", school: "Oakwood Primary", description: "We are offering a cookery club on Thursdays from 3:30–4:30pm, starting 24 Apr.\n\nThe cost is £5 per session, payable termly (£60). Children will cook simple recipes and take their food home each week.\n\nPlease give or decline consent below.", date: "28 Feb 2026" },
     { id: "n6", type: "Consent", title: "School trip – Tate Modern", child: "Lucas", school: "Oakwood Primary", description: "Historical notice.", date: "10 Jan 2026" },
     { id: "n9", type: "Consent", title: "Class trip – Bekonscot Model Village", child: "Lucas", school: "Oakwood Primary", description: "Historical notice.", date: "24 Sep 2025" },
-    { id: "n10", type: "Consent", title: "Year 4 residential – Stubbington Study Centre", child: "Molly", school: "Oakwood Primary", description: "Year 4 are going on a 3-night residential to Stubbington Study Centre from Monday 12 May to Thursday 15 May.\n\nActivities include coastal fieldwork, night walks and team challenges. The cost is £285 per child, covering all meals, accommodation and activities. A deposit of £50 is due by 28 Mar.\n\nChildren should bring named clothing and a small amount of spending money (no more than £10).\n\nPlease give or decline consent below.", date: "3 Mar 2026" },
-    { id: "n11", type: "Consent", title: "PSHE survey – Wellbeing and safety", child: "Molly", school: "Oakwood Primary", description: "As part of our PSHE curriculum, all Year 4 children are invited to take part in an anonymous wellbeing survey.\n\nThe survey covers topics including friendships, feelings and staying safe online. It is conducted by a specialist external provider, and no personally identifiable information is collected.\n\nResults are used to shape our pastoral support programme.\n\nPlease give or decline consent below.", date: "4 Mar 2026" },
-    { id: "n12", type: "Consent", title: "After-school drama club – Summer term", child: "Molly", school: "Oakwood Primary", description: "We are offering a drama club for Year 4 children on Tuesdays from 3:30–4:30pm, starting 29 Apr.\n\nThe club will culminate in a short end-of-term performance for parents on Wednesday 16 Jul at 5:30pm.\n\nThe cost is £4 per session, payable termly (£48). Places are limited to 20 children.\n\nPlease give or decline consent below.", date: "5 Mar 2026" },
+    { id: "n10", type: "Consent", title: "Year 4 residential – Stubbington Study Centre", child: "Molly", school: "Oakwood Primary", description: "Year 4 are going on a 3-night residential to Stubbington Study Centre from Monday 12 May to Thursday 15 May.\n\nActivities include coastal fieldwork, night walks and team challenges. The cost is £285 per child, covering all meals, accommodation and activities. A deposit of £50 is due by 28 Mar.\n\nChildren should bring named clothing and a small amount of spending money (no more than £10).\n\nPlease give or decline consent below.", date: "20 May 2026" },
+    { id: "n11", type: "Consent", title: "PSHE survey – Wellbeing and safety", child: "Molly", school: "Oakwood Primary", description: "As part of our PSHE curriculum, all Year 4 children are invited to take part in an anonymous wellbeing survey.\n\nThe survey covers topics including friendships, feelings and staying safe online. It is conducted by a specialist external provider, and no personally identifiable information is collected.\n\nResults are used to shape our pastoral support programme.\n\nPlease give or decline consent below.", date: "23 May 2026" },
+    { id: "n12", type: "Consent", title: "After-school drama club – Summer term", child: "Molly", school: "Oakwood Primary", description: "We are offering a drama club for Year 4 children on Tuesdays from 3:30–4:30pm, starting 29 Apr.\n\nThe club will culminate in a short end-of-term performance for parents on Wednesday 16 Jul at 5:30pm.\n\nThe cost is £4 per session, payable termly (£48). Places are limited to 20 children.\n\nPlease give or decline consent below.", date: "27 May 2026" },
     { id: "n13", type: "Consent", title: "Swimming lessons – Year 4", child: "Molly", school: "Oakwood Primary", description: "Historical notice.", date: "20 Jan 2026" },
     { id: "n7", type: "Consent", title: "Media permission 2024/25", child: "Molly", school: "Oakwood Primary", description: "Historical notice.", date: "5 Sep 2025" },
     { id: "n14", type: "Consent", title: "School trip – Science Museum", child: "Molly", school: "Oakwood Primary", description: "Historical notice.", date: "8 Nov 2025" },
     { id: "n15", type: "Consent", title: "Sports Day participation 2025", child: "Molly", school: "Oakwood Primary", description: "Historical notice.", date: "2 Jun 2025" },
     { id: "n16", type: "Consent", title: "Flu vaccination 2025", child: "Molly", school: "Oakwood Primary", description: "Historical notice.", date: "15 Oct 2025" },
     { id: "n17", type: "Consent", title: "Year 3 residential – Stubbers Adventure", child: "Molly", school: "Oakwood Primary", description: "Historical notice.", date: "3 Mar 2025" },
-    { id: "n18", type: "Consent", title: "Duke of Edinburgh – Bronze award", child: "Ethan", school: "Riverside Secondary", description: "Riverside Secondary is pleased to offer students the opportunity to complete the Duke of Edinburgh Bronze Award.\n\nThe programme involves 3 months of volunteering, physical activity and skill development, plus a 2-day assessed expedition in the Surrey Hills (dates TBC, approximately June).\n\nThe registration fee is £25. Expedition kit can be borrowed from school at no cost.\n\nPlease give or decline consent below.", date: "4 Mar 2026" },
-    { id: "n19", type: "Consent", title: "Work experience placement consent", child: "Ethan", school: "Riverside Secondary", description: "Work experience will take place from Monday 23 Jun to Friday 27 Jun.\n\nStudents are responsible for arranging their own placement (a list of local employers is available from the careers office). Once a placement is confirmed, parents are asked to sign this consent form and return it by 30 Apr.\n\nPlease give or decline consent below.", date: "5 Mar 2026" },
+    { id: "n18", type: "Consent", title: "Duke of Edinburgh – Bronze award", child: "Ethan", school: "Riverside Secondary", description: "Riverside Secondary is pleased to offer students the opportunity to complete the Duke of Edinburgh Bronze Award.\n\nThe programme involves 3 months of volunteering, physical activity and skill development, plus a 2-day assessed expedition in the Surrey Hills (dates TBC, approximately June).\n\nThe registration fee is £25. Expedition kit can be borrowed from school at no cost.\n\nPlease give or decline consent below.", date: "3 Jun 2026" },
+    { id: "n19", type: "Consent", title: "Work experience placement consent", child: "Ethan", school: "Riverside Secondary", description: "Work experience will take place from Monday 23 Jun to Friday 27 Jun.\n\nStudents are responsible for arranging their own placement (a list of local employers is available from the careers office). Once a placement is confirmed, parents are asked to sign this consent form and return it by 30 Apr.\n\nPlease give or decline consent below.", date: "10 Jun 2026" },
     { id: "n8", type: "Consent", title: "Residential trip – Kingswood", child: "Ethan", school: "Riverside Secondary", description: "Historical notice.", date: "15 Nov 2025" },
     { id: "n20", type: "Consent", title: "Year 9 theatre trip – National Theatre", child: "Ethan", school: "Riverside Secondary", description: "Historical notice.", date: "14 Jan 2026" },
     { id: "n21", type: "Consent", title: "Media permission 2024/25", child: "Ethan", school: "Riverside Secondary", description: "Historical notice.", date: "4 Sep 2025" },
@@ -1581,6 +1655,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const baseMealsBalance = selectedChild.name === "Ethan" ? 64.0 : selectedChild.name === "Lucas" ? 52.0 : 3.50;
   const baseWraparoundBalance = selectedChild.name === "Lucas" ? 4.50 : selectedChild.name === "Ethan" ? 0 : 80.0;
   const mealsBalance = baseMealsBalance + mealsTopUpAmount;
+  const milkBalance = 8.50 + milkTopUpAmount;
   const wraparoundBalance = baseWraparoundBalance + toppedUpAmount;
   const lowFundsThreshold = 5.0;
 
@@ -1660,6 +1735,155 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
       ],
       perSessionPrice: 8, blockSessions: 10, blockPrice: 80, isFree: false,
     },
+    6: {
+      about: "Multi-Sport Club introduces a different sport each week — football, basketball, athletics, cricket, and more. Children build all-round skills, fitness, and teamwork in a fun, supportive environment.",
+      bullets: ["All abilities welcome", "Equipment provided", "Different sport every week"],
+      // All six containers configured — Multi-Sport doubles as the Wide Enrichment demo.
+      // Half-term data is synthetic (summer term split in two) — Multi-Sport's dates don't align with real UK half-terms.
+      // Four containers: Day, Week, Month, Term. Half-term + Year live on Music Programme (more realistic for year-long bookings).
+      periods: [
+        { id: "6-daily",      type: "daily",      days: "Mon, Wed, Fri", label: "Drop-in",                  start: "15:30", end: "16:30", price: 4,  sessionsRemaining: null },
+        { id: "6-weekly",     type: "weekly",     days: "Mon, Wed, Fri", label: "Multi-Sport weekly pass",  start: "15:30", end: "16:30", price: 10, sessionsRemaining: null },
+        { id: "6-monthly",    type: "monthly",    days: "Mon, Wed, Fri", label: "Multi-Sport monthly pass", start: "15:30", end: "16:30", price: 35, sessionsRemaining: null },
+        { id: "6-termly",     type: "termly",     days: "Mon, Wed, Fri", label: "Summer term 2026",         start: "15:30", end: "16:30", price: 80, sessionsRemaining: 24 },
+      ],
+      // Sessions for the Day picker — Mon/Wed/Fri across the term.
+      // Dates rejigged for the 30 Jun 2026 demo. Current week (w/c 29 Jun) is the pro-rated one — Mon past, Wed/Fri ahead.
+      // weekLabel on the first session of each week buckets sessions in the choose-dates week-grouped picker.
+      sessionDates: [
+        { id: "ms-mon-jun29", label: "Mon 29 Jun", past: true,  dayKey: "mon", weekLabel: "Mon 29 Jun – Fri 3 Jul" },
+        { id: "ms-wed-jul1",  label: "Wed 1 Jul",  active: true, dayKey: "wed" },
+        { id: "ms-fri-jul3",  label: "Fri 3 Jul",  active: true, dayKey: "fri" },
+        { id: "ms-mon-jul6",  label: "Mon 6 Jul",  active: true, dayKey: "mon", weekLabel: "Mon 6 – Fri 10 Jul" },
+        { id: "ms-wed-jul8",  label: "Wed 8 Jul",  active: true, dayKey: "wed" },
+        { id: "ms-fri-jul10", label: "Fri 10 Jul", active: true, dayKey: "fri" },
+        { id: "ms-mon-jul13", label: "Mon 13 Jul", active: true, dayKey: "mon", weekLabel: "Mon 13 – Fri 17 Jul" },
+        { id: "ms-wed-jul15", label: "Wed 15 Jul", active: true, dayKey: "wed" },
+        { id: "ms-fri-jul17", label: "Fri 17 Jul", active: true, dayKey: "fri" },
+        { id: "ms-mon-jul20", label: "Mon 20 Jul", active: true, dayKey: "mon", weekLabel: "Mon 20 – Fri 24 Jul" },
+        { id: "ms-wed-jul22", label: "Wed 22 Jul", active: true, dayKey: "wed" },
+        { id: "ms-fri-jul24", label: "Fri 24 Jul", active: true, dayKey: "fri" },
+        { id: "ms-mon-jul27", label: "Mon 27 Jul", active: true, dayKey: "mon", weekLabel: "Mon 27 – Fri 31 Jul" },
+        { id: "ms-wed-jul29", label: "Wed 29 Jul", active: true, dayKey: "wed" },
+        { id: "ms-fri-jul31", label: "Fri 31 Jul", active: true, dayKey: "fri" },
+        { id: "ms-mon-aug3",  label: "Mon 3 Aug",  active: true, dayKey: "mon", weekLabel: "Mon 3 – Fri 7 Aug" },
+        { id: "ms-wed-aug5",  label: "Wed 5 Aug",  active: true, dayKey: "wed" },
+        { id: "ms-fri-aug7",  label: "Fri 7 Aug",  active: true, dayKey: "fri" },
+        { id: "ms-mon-aug10", label: "Mon 10 Aug", active: true, dayKey: "mon", weekLabel: "Mon 10 – Fri 14 Aug" },
+        { id: "ms-wed-aug12", label: "Wed 12 Aug", active: true, dayKey: "wed" },
+        { id: "ms-fri-aug14", label: "Fri 14 Aug", active: true, dayKey: "fri" },
+        { id: "ms-mon-aug17", label: "Mon 17 Aug", active: true, dayKey: "mon", weekLabel: "Mon 17 – Fri 21 Aug" },
+        { id: "ms-wed-aug19", label: "Wed 19 Aug", active: true, dayKey: "wed" },
+        { id: "ms-fri-aug21", label: "Fri 21 Aug", active: true, dayKey: "fri" },
+        { id: "ms-mon-aug24", label: "Mon 24 Aug", active: true, dayKey: "mon", weekLabel: "Mon 24 – Fri 28 Aug" },
+        { id: "ms-wed-aug26", label: "Wed 26 Aug", active: true, dayKey: "wed" },
+        { id: "ms-fri-aug28", label: "Fri 28 Aug", active: true, dayKey: "fri" },
+        { id: "ms-mon-aug31", label: "Mon 31 Aug", active: true, dayKey: "mon", weekLabel: "Mon 31 Aug – Fri 4 Sep" },
+        { id: "ms-wed-sep2",  label: "Wed 2 Sep",  active: true, dayKey: "wed" },
+        { id: "ms-fri-sep4",  label: "Fri 4 Sep",  active: true, dayKey: "fri" },
+      ],
+      // Week instances for the new instance picker. Demo data covers all four UI states:
+      //   - available (most rows)
+      //   - prorated (current week, joined mid-week)
+      //   - booked (parent owns a Day pass for a day in this week)
+      //   - full (any single date hit capacity)
+      weekInstances: [
+        // Dates rejigged for 30 Jun 2026 demo. w/c 29 Jun is the current week (pro-rated). States spread to land naturally:
+        //   - Pro-rated: this week (Mon past, 2 sessions ahead)
+        //   - Booked:    week w/c 13 Jul (parent already has Mon 13 Jul individually)
+        //   - Full:      week w/c 27 Jul (one of the dates filled up)
+        { id: "wk-jun29", start: "Mon 29 Jun", end: "Fri 3 Jul",  price: 10, state: "prorated", proratedPrice: 7, validFrom: "Wed 1 Jul", sessions: ["ms-wed-jul1", "ms-fri-jul3"] },
+        { id: "wk-jul6",  start: "Mon 6 Jul",  end: "Fri 10 Jul", price: 10, state: "available", sessions: ["ms-mon-jul6", "ms-wed-jul8", "ms-fri-jul10"] },
+        { id: "wk-jul13", start: "Mon 13 Jul", end: "Fri 17 Jul", price: 10, state: "booked",    bookedNote: "You've booked Mon 13 Jul", bookedSessions: ["ms-mon-jul13"], sessions: ["ms-mon-jul13", "ms-wed-jul15", "ms-fri-jul17"] },
+        // raceFull: this week renders as Available, but on commit it triggers the race-at-commit interrupt (a session inside filled up between selection and pay).
+        { id: "wk-jul20", start: "Mon 20 Jul", end: "Fri 24 Jul", price: 10, state: "available", raceFull: true, sessions: ["ms-mon-jul20", "ms-wed-jul22", "ms-fri-jul24"] },
+        { id: "wk-jul27", start: "Mon 27 Jul", end: "Fri 31 Jul", price: 10, state: "full",      sessions: [] },
+        { id: "wk-aug3",  start: "Mon 3 Aug",  end: "Fri 7 Aug",  price: 10, state: "available", sessions: ["ms-mon-aug3", "ms-wed-aug5", "ms-fri-aug7"] },
+        { id: "wk-aug10", start: "Mon 10 Aug", end: "Fri 14 Aug", price: 10, state: "available", sessions: ["ms-mon-aug10", "ms-wed-aug12", "ms-fri-aug14"] },
+        { id: "wk-aug17", start: "Mon 17 Aug", end: "Fri 21 Aug", price: 10, state: "available", sessions: ["ms-mon-aug17", "ms-wed-aug19", "ms-fri-aug21"] },
+        { id: "wk-aug24", start: "Mon 24 Aug", end: "Fri 28 Aug", price: 10, state: "available", sessions: ["ms-mon-aug24", "ms-wed-aug26", "ms-fri-aug28"] },
+        { id: "wk-aug31", start: "Mon 31 Aug", end: "Fri 4 Sep",  price: 10, state: "available", sessions: ["ms-mon-aug31", "ms-wed-sep2", "ms-fri-sep4"] },
+      ],
+      // Monthly instances. Each carries a calendar-month label (e.g. "July 2026").
+      // States: July available, August booked (Day pass overlap on Mon 3 Aug), September pro-rated (partial month — term ends Sep 4).
+      monthInstances: [
+        { id: "mo-jul", label: "July 2026", price: 35, state: "available", sessions: ["ms-mon-jul6", "ms-wed-jul8", "ms-fri-jul10", "ms-mon-jul13", "ms-wed-jul15", "ms-fri-jul17", "ms-mon-jul20", "ms-wed-jul22", "ms-fri-jul24", "ms-mon-jul27", "ms-wed-jul29", "ms-fri-jul31"] },
+        { id: "mo-aug", label: "August 2026", price: 35, state: "booked", bookedNote: "You've booked Mon 3 Aug", bookedSessions: ["ms-mon-aug3"], sessions: ["ms-mon-aug3", "ms-wed-aug5", "ms-fri-aug7", "ms-mon-aug10", "ms-wed-aug12", "ms-fri-aug14", "ms-mon-aug17", "ms-wed-aug19", "ms-fri-aug21", "ms-mon-aug24", "ms-wed-aug26", "ms-fri-aug28", "ms-mon-aug31"] },
+        { id: "mo-sep", label: "September 2026", price: 35, state: "prorated", proratedPrice: 5, sessions: ["ms-wed-sep2", "ms-fri-sep4"] },
+      ],
+      perSessionPrice: 4, blockSessions: 24, blockPrice: 80, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
+    },
+    47: {
+      // Music Programme — Wide-ish demo for Half-termly + Termly + Yearly. Term-time Wednesdays across the 2026/27 academic year.
+      about: "Music Programme runs every Wednesday during term-time. Children explore voice, instrument and ensemble work across the academic year, with end-of-term concerts.",
+      bullets: ["No prior experience required", "Instruments provided", "End-of-term performances"],
+      periods: [
+        { id: "47-halftermly", type: "halftermly", days: "Wed", label: "Music half-term pass", start: "16:00", end: "17:00", price: 60,  sessionsRemaining: null },
+        // Termly carries its own sessions list (Autumn term only) so confirmation shows 15 — not the full year's 39.
+        { id: "47-termly",     type: "termly",     days: "Wed", label: "Autumn term 2026",     start: "16:00", end: "17:00", price: 140, sessionsRemaining: 15,
+          sessions: ["mp-sep2", "mp-sep9", "mp-sep16", "mp-sep23", "mp-sep30", "mp-oct7", "mp-oct14", "mp-oct21", "mp-nov4", "mp-nov11", "mp-nov18", "mp-nov25", "mp-dec2", "mp-dec9", "mp-dec16"] },
+        { id: "47-yearly",     type: "yearly",     days: "Wed", label: "Academic year 2026/27", start: "16:00", end: "17:00", price: 400, sessionsRemaining: 39 },
+      ],
+      // 39 active Wednesdays + 7 break Wednesdays (half-terms / Christmas / Easter) — break entries render with strikethrough + Tag in accordions, same pattern as Multi-Sport's half-term row.
+      sessionDates: [
+        { id: "mp-sep2",  label: "Wed 2 Sep",   active: true,  dayKey: "wed" },
+        { id: "mp-sep9",  label: "Wed 9 Sep",   active: true,  dayKey: "wed" },
+        { id: "mp-sep16", label: "Wed 16 Sep",  active: true,  dayKey: "wed" },
+        { id: "mp-sep23", label: "Wed 23 Sep",  active: true,  dayKey: "wed" },
+        { id: "mp-sep30", label: "Wed 30 Sep",  active: true,  dayKey: "wed" },
+        { id: "mp-oct7",  label: "Wed 7 Oct",   active: true,  dayKey: "wed" },
+        { id: "mp-oct14", label: "Wed 14 Oct",  active: true,  dayKey: "wed" },
+        { id: "mp-oct21", label: "Wed 21 Oct",  active: true,  dayKey: "wed" },
+        { id: "mp-oct28", label: "Wed 28 Oct",  active: false, note: "Half term", dayKey: "wed" },
+        { id: "mp-nov4",  label: "Wed 4 Nov",   active: true,  dayKey: "wed" },
+        { id: "mp-nov11", label: "Wed 11 Nov",  active: true,  dayKey: "wed" },
+        { id: "mp-nov18", label: "Wed 18 Nov",  active: true,  dayKey: "wed" },
+        { id: "mp-nov25", label: "Wed 25 Nov",  active: true,  dayKey: "wed" },
+        { id: "mp-dec2",  label: "Wed 2 Dec",   active: true,  dayKey: "wed" },
+        { id: "mp-dec9",  label: "Wed 9 Dec",   active: true,  dayKey: "wed" },
+        { id: "mp-dec16", label: "Wed 16 Dec",  active: true,  dayKey: "wed" },
+        { id: "mp-dec23", label: "Wed 23 Dec",  active: false, note: "Christmas", dayKey: "wed" },
+        { id: "mp-dec30", label: "Wed 30 Dec",  active: false, note: "Christmas", dayKey: "wed" },
+        { id: "mp-jan6",  label: "Wed 6 Jan",   active: true,  dayKey: "wed" },
+        { id: "mp-jan13", label: "Wed 13 Jan",  active: true,  dayKey: "wed" },
+        { id: "mp-jan20", label: "Wed 20 Jan",  active: true,  dayKey: "wed" },
+        { id: "mp-jan27", label: "Wed 27 Jan",  active: true,  dayKey: "wed" },
+        { id: "mp-feb3",  label: "Wed 3 Feb",   active: true,  dayKey: "wed" },
+        { id: "mp-feb10", label: "Wed 10 Feb",  active: true,  dayKey: "wed" },
+        { id: "mp-feb17", label: "Wed 17 Feb",  active: false, note: "Half term", dayKey: "wed" },
+        { id: "mp-feb24", label: "Wed 24 Feb",  active: true,  dayKey: "wed" },
+        { id: "mp-mar3",  label: "Wed 3 Mar",   active: true,  dayKey: "wed" },
+        { id: "mp-mar10", label: "Wed 10 Mar",  active: true,  dayKey: "wed" },
+        { id: "mp-mar17", label: "Wed 17 Mar",  active: true,  dayKey: "wed" },
+        { id: "mp-mar24", label: "Wed 24 Mar",  active: true,  dayKey: "wed" },
+        { id: "mp-mar31", label: "Wed 31 Mar",  active: true,  dayKey: "wed" },
+        { id: "mp-apr7",  label: "Wed 7 Apr",   active: false, note: "Easter",    dayKey: "wed" },
+        { id: "mp-apr14", label: "Wed 14 Apr",  active: false, note: "Easter",    dayKey: "wed" },
+        { id: "mp-apr21", label: "Wed 21 Apr",  active: true,  dayKey: "wed" },
+        { id: "mp-apr28", label: "Wed 28 Apr",  active: true,  dayKey: "wed" },
+        { id: "mp-may5",  label: "Wed 5 May",   active: true,  dayKey: "wed" },
+        { id: "mp-may12", label: "Wed 12 May",  active: true,  dayKey: "wed" },
+        { id: "mp-may19", label: "Wed 19 May",  active: true,  dayKey: "wed" },
+        { id: "mp-may26", label: "Wed 26 May",  active: true,  dayKey: "wed" },
+        { id: "mp-jun2",  label: "Wed 2 Jun",   active: false, note: "Half term", dayKey: "wed" },
+        { id: "mp-jun9",  label: "Wed 9 Jun",   active: true,  dayKey: "wed" },
+        { id: "mp-jun16", label: "Wed 16 Jun",  active: true,  dayKey: "wed" },
+        { id: "mp-jun23", label: "Wed 23 Jun",  active: true,  dayKey: "wed" },
+        { id: "mp-jun30", label: "Wed 30 Jun",  active: true,  dayKey: "wed" },
+        { id: "mp-jul7",  label: "Wed 7 Jul",   active: true,  dayKey: "wed" },
+        { id: "mp-jul14", label: "Wed 14 Jul",  active: true,  dayKey: "wed" },
+      ],
+      // 6 selectable half-terms across the academic year. Gaps between dates communicate the breaks naturally — no need for explicit break rows at this granularity.
+      halfTermInstances: [
+        { id: "mp-ht-aut1", label: "1 Sep – 23 Oct 2026",  price: 60, state: "available", sessions: ["mp-sep2", "mp-sep9", "mp-sep16", "mp-sep23", "mp-sep30", "mp-oct7", "mp-oct14", "mp-oct21"] },
+        { id: "mp-ht-aut2", label: "2 Nov – 18 Dec 2026",  price: 60, state: "available", sessions: ["mp-nov4", "mp-nov11", "mp-nov18", "mp-nov25", "mp-dec2", "mp-dec9", "mp-dec16"] },
+        { id: "mp-ht-spr1", label: "5 Jan – 12 Feb 2027",  price: 60, state: "available", sessions: ["mp-jan6", "mp-jan13", "mp-jan20", "mp-jan27", "mp-feb3", "mp-feb10"] },
+        { id: "mp-ht-spr2", label: "22 Feb – 26 Mar 2027", price: 60, state: "available", sessions: ["mp-feb24", "mp-mar3", "mp-mar10", "mp-mar17", "mp-mar24", "mp-mar31"] },
+        { id: "mp-ht-sum1", label: "19 Apr – 28 May 2027", price: 60, state: "available", sessions: ["mp-apr21", "mp-apr28", "mp-may5", "mp-may12", "mp-may19", "mp-may26"] },
+        { id: "mp-ht-sum2", label: "7 Jun – 16 Jul 2027",  price: 60, state: "available", sessions: ["mp-jun9", "mp-jun16", "mp-jun23", "mp-jun30", "mp-jul7", "mp-jul14"] },
+      ],
+      perSessionPrice: null, blockSessions: 39, blockPrice: 400, isFree: false, dailyLabel: null, termlyLabel: "Autumn term 2026",
+    },
     /* ARCHIVED 2026-05-29 — Coding Club + provisional payment model. Provisional bookings are portal-only for now. Restore by uncommenting + restoring needsAttention count.
     7: {
       about: "Coding Club introduces children to programming through hands-on projects using Scratch, Python, and web basics. Sessions are accessible and engaging, helping children develop logical thinking and problem-solving skills.",
@@ -1684,6 +1908,12 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     28: {
       about: "Forest School at Oakwood gives children weekly outdoor learning sessions in our woodland area. Activities include shelter building, fire safety, nature crafts, and seasonal exploration. Children develop resilience, creativity, and confidence in the outdoors.",
       bullets: ["Suitable clothing provided if needed", "All weather — sessions run rain or shine", "Run by qualified Forest School practitioners"],
+      // Explicit periods so Weekly sits alongside the existing Daily + Termly. Schools running voluntary contribution can set a per-week suggested figure that the picker scales by selection count.
+      periods: [
+        { id: "28-daily",  type: "daily",  days: "Fri", label: "Drop-in",                  start: "15:30", end: "16:30", price: 6,  sessionsRemaining: null },
+        { id: "28-weekly", type: "weekly", days: "Fri", label: "Forest School weekly pass", start: "15:30", end: "16:30", price: 6,  sessionsRemaining: null },
+        { id: "28-termly", type: "termly", days: "Fri", label: "Summer term 2026",         start: "15:30", end: "16:30", price: 60, sessionsRemaining: 10 },
+      ],
       sessionDates: [
         { id: "fs-apr17", label: "Fri 17 Apr", active: true },
         { id: "fs-apr24", label: "Fri 24 Apr", active: true },
@@ -1696,6 +1926,19 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "fs-jun12", label: "Fri 12 Jun", active: true },
         { id: "fs-jun19", label: "Fri 19 Jun", active: true },
         { id: "fs-jun26", label: "Fri 26 Jun", active: true },
+      ],
+      // Weekly instances — one Fri session per week. The per-week price (£6) is the school's suggested-per-week contribution; the picker sums these across selected weeks.
+      weekInstances: [
+        { id: "fs-wk-apr13", start: "Mon 13 Apr", end: "Fri 17 Apr", price: 6, state: "available", sessions: ["fs-apr17"] },
+        { id: "fs-wk-apr20", start: "Mon 20 Apr", end: "Fri 24 Apr", price: 6, state: "available", sessions: ["fs-apr24"] },
+        { id: "fs-wk-apr27", start: "Mon 27 Apr", end: "Fri 1 May",  price: 6, state: "available", sessions: ["fs-may1"] },
+        { id: "fs-wk-may4",  start: "Mon 4 May",  end: "Fri 8 May",  price: 6, state: "available", sessions: ["fs-may8"] },
+        { id: "fs-wk-may11", start: "Mon 11 May", end: "Fri 15 May", price: 6, state: "available", sessions: ["fs-may15"] },
+        { id: "fs-wk-may18", start: "Mon 18 May", end: "Fri 22 May", price: 6, state: "available", sessions: ["fs-may22"] },
+        { id: "fs-wk-jun1",  start: "Mon 1 Jun",  end: "Fri 5 Jun",  price: 6, state: "available", sessions: ["fs-jun5"] },
+        { id: "fs-wk-jun8",  start: "Mon 8 Jun",  end: "Fri 12 Jun", price: 6, state: "available", sessions: ["fs-jun12"] },
+        { id: "fs-wk-jun15", start: "Mon 15 Jun", end: "Fri 19 Jun", price: 6, state: "available", sessions: ["fs-jun19"] },
+        { id: "fs-wk-jun22", start: "Mon 22 Jun", end: "Fri 26 Jun", price: 6, state: "available", sessions: ["fs-jun26"] },
       ],
       perSessionPrice: 6, blockSessions: 10, blockPrice: 60, isFree: false, dailyLabel: "Drop-in", termlyLabel: "Summer term 2026",
     },
@@ -1928,7 +2171,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           const monthOrder   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
           const termlyTotal  = effectivePeriod?.price ?? extras.blockPrice ?? 0;
           const isVariable   = selectedClub.paymentModel === "variable";
-          const ctaLabel     = effectivePeriod?.type === "daily" ? "Choose sessions" : extras.isFree ? "Confirm booking" : `Pay now · £${termlyTotal.toFixed(2)}`;
+          const ctaLabel     = effectivePeriod?.type === "daily" ? "Choose sessions" : effectivePeriod?.type === "weekly" ? "Choose weeks" : effectivePeriod?.type === "monthly" ? "Choose months" : effectivePeriod?.type === "halftermly" ? "Choose half-terms" : extras.isFree ? "Confirm booking" : `Pay now · £${termlyTotal.toFixed(2)}`;
           const onCta        = () => {
             if (!effectivePeriod) return;
             // Arbor-side space gate: re-check at the commit tap, before any handoff. If gone, interrupt with the "just filled up" sheet.
@@ -1937,12 +2180,13 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             const willRace = (effectivePeriod.raceFull || selectedClub.raceOnCommit) && !isPeriodFull(effectivePeriod);
             if (willRace && !selectedClub.full) {
               const othersLeft = availablePeriods.some(p => p.id !== effectivePeriod.id);
-              if (othersLeft) { const periodType = effectivePeriod.type === "termly" ? "full term" : "per session"; const baseLabel = effectivePeriod.label || selectedClub.title; setRaceSheet({ scope: "option", title: selectedClub.title, optionLabel: `${baseLabel} (${periodType})`, periodId: effectivePeriod.id }); }
+              if (othersLeft) { const periodType = effectivePeriod.type === "termly" ? "full term" : effectivePeriod.type === "yearly" ? "full year" : "per session"; const baseLabel = effectivePeriod.label || selectedClub.title; setRaceSheet({ scope: "option", title: selectedClub.title, optionLabel: `${baseLabel} (${periodType})`, periodId: effectivePeriod.id }); }
               else setRaceSheet({ scope: "club", title: selectedClub.title });
               return;
             }
-            if (!selectedBkPeriod) { setSelectedBkPeriod(effectivePeriod); setBookingOption(effectivePeriod.type === "termly" ? "term" : "individual"); }
+            if (!selectedBkPeriod) { setSelectedBkPeriod(effectivePeriod); setBookingOption((effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") ? "term" : "individual"); }
             if (effectivePeriod.type === "daily") { setFlowStep("choose-dates"); setSelectedDates({}); setClubDatesError(false); }
+            else if (effectivePeriod.type === "weekly" || effectivePeriod.type === "monthly" || effectivePeriod.type === "halftermly") { setFlowStep("choose-instances"); setSelectedWeeks({}); setExpandedInstances({}); setClubDatesError(false); }
             else if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }
             else { setTakeoverPaymentAmount(termlyTotal); setPaymentMethod("card"); setCardFilled(false); setShowStripeSheet(true); }
           };
@@ -2011,20 +2255,29 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       </button>
                     </div>
                     {detailDatesExpanded && (() => {
+                      // Group by month, track chronological order, derive year-by-month from club termDates so academic-year clubs show correct years.
+                      const startYear = parseInt((selectedClub.termDates || "").match(/\d{4}/)?.[0] || "2026", 10);
                       const groups = {};
+                      const monthOrderInData = [];
+                      const yearByMonth = {};
+                      let currentYear = startYear;
+                      let prevMonthIdx = -1;
                       allDates.filter(d => !d.past).forEach(d => {
                         const parts = d.label.split(" ");
                         const month = parts[parts.length - 1];
+                        const monthIdx = monthOrder.indexOf(month);
+                        if (prevMonthIdx >= 0 && monthIdx < prevMonthIdx) currentYear++;
+                        prevMonthIdx = monthIdx;
+                        if (!(month in yearByMonth)) { yearByMonth[month] = currentYear; monthOrderInData.push(month); }
                         const dayDisplay = parts.slice(0, -1).join(" ");
                         if (!groups[month]) groups[month] = [];
                         groups[month].push({ ...d, dayDisplay });
                       });
-                      const sortedMonths = Object.keys(groups).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
                       return (
                         <div style={{ marginTop: 12, textAlign: "left" }}>
-                          {sortedMonths.map((month, mi) => (
-                            <div key={month} style={{ marginBottom: mi < sortedMonths.length - 1 ? 20 : 0 }}>
-                              <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 12 }}>{month} 2026</div>
+                          {monthOrderInData.map((month, mi) => (
+                            <div key={month} style={{ marginBottom: mi < monthOrderInData.length - 1 ? 20 : 0 }}>
+                              <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 12 }}>{month} {yearByMonth[month]}</div>
                               {groups[month].map(d => (
                                 <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
                                   <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.label}</span>
@@ -2087,11 +2340,12 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   {(() => {
                     const isSuggested = isVariable && (selectedClub.minimumContribution ?? 0) === 0;
                     const isMinThreshold = isVariable && (selectedClub.minimumContribution ?? 0) > 0;
-                    const getCardTitle = (period) => period.type === "termly" ? "Full term" : "Per session";
+                    const getCardTitle = (period) => period.type === "termly" ? "Full term" : period.type === "yearly" ? "Full year" : period.type === "weekly" ? "Per week" : period.type === "monthly" ? "Per month" : period.type === "halftermly" ? "Per half-term" : "Per session";
                     const getSchoolName = (period) => period.label || (period.type === "termly" ? (extras.termlyLabel || null) : null);
                     const getSessionCount = (period) => period.type === "termly" ? (period.sessionsRemaining ?? extras.blockSessions ?? null) : null;
                     const toMin = t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
                     const bkDayOrder = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+                    const containerOrder = { daily: 0, weekly: 1, monthly: 2, halftermly: 3, termly: 4, yearly: 5 };
                     const sortedPeriods = [...clubPeriods].sort((a, b) => {
                       // Full options sink to the bottom — actionable choices lead.
                       const fA = isPeriodFull(a) ? 1 : 0;
@@ -2101,7 +2355,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       const dB = bkDayOrder[b.dayKey] ?? 99;
                       if (dA !== dB) return dA - dB;
                       if (a.start !== b.start) return toMin(a.start) - toMin(b.start);
-                      return a.type === "daily" ? -1 : 1;
+                      // Smallest container first → largest. Lets the parent scan price-ascending too.
+                      return (containerOrder[a.type] ?? 99) - (containerOrder[b.type] ?? 99);
                     });
                     if (sortedPeriods.length === 1) {
                       const period = sortedPeriods[0];
@@ -2141,7 +2396,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     return (
                       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         {sortedPeriods.map((period) => {
-                          const isTermly = period.type === "termly";
+                          const isTermly = period.type === "termly" || period.type === "yearly";
                           const price = fmtPrice(period.price);
                           const schoolName = getSchoolName(period);
                           // Full option = non-selectable row. No radio (nothing to choose), muted text, grey "Full" tag where
@@ -2187,7 +2442,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     {clubPeriods.length === 1 ? (() => {
                       // Single option: the club-card cost summary (Full term / membership / price).
                       const period = clubPeriods[0];
-                      const isTermly = period.type === "termly";
+                      const isTermly = period.type === "termly" || period.type === "yearly";
                       const name = period.label || (isTermly ? extras.termlyLabel : null);
                       const basis = isTermly ? "Full term" : "Per session";
                       return (
@@ -2217,21 +2472,21 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 {selectedClub.full ? (
                   <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", textAlign: "center", lineHeight: 1.4, padding: "10px 0" }}>This club is full. Contact the school office if you have a question.</div>
                 ) : (<>
-                {effectivePeriod.type === "termly" && (
+                {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && (
                   <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
                 )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <button onClick={onCta} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{ctaLabel}</button>
-                  {effectivePeriod.type === "termly" && isVariable && (selectedClub.minimumContribution ?? 0) > 0 && (
+                  {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && isVariable && (selectedClub.minimumContribution ?? 0) > 0 && (
                     <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: termlyTotal }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                   )}
-                  {effectivePeriod.type === "termly" && isVariable && (
+                  {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && isVariable && (
                     <button onClick={() => { const min = selectedClub.minimumContribution ?? 0; setPartialAmount(min > 0 ? min : termlyTotal); setPartialAmountFlash(false); setShowPartialSheet(true); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay a different amount</button>
                   )}
-                  {effectivePeriod.type === "termly" && !extras.isFree && !isVariable && (
+                  {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && !extras.isFree && !isVariable && (
                     <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: termlyTotal }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                   )}
-                  {effectivePeriod.type === "termly" && selectedClub.paymentModel === "provisional" && (
+                  {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && selectedClub.paymentModel === "provisional" && (
                     <button onClick={() => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Reserve &amp; pay later</button>
                   )}
                 </div>
@@ -2321,7 +2576,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
-                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
                     </div>
                     <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
@@ -2372,8 +2627,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <button onClick={() => { setFlowStep(null); setClubDatesError(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{selectedClub.title}</span>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, flex: 1, minWidth: 0, padding: "0 8px" }}>
+                <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedClub.title}</span>
                 <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>For {selectedChild.name}</span>
               </div>
               <button onClick={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
@@ -2522,11 +2777,11 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); } else { setTakeoverPaymentAmount(total); setShowStripeSheet(true); } }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{extras.isFree ? "Confirm booking" : (count > 0 ? `Pay now · £${total.toFixed(2)}` : "Pay now")}</button>
-                {selectedClub.paymentModel === "variable" && (
-                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setPartialAmount(total); setPartialAmountFlash(false); setShowPartialSheet(true); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay a different amount</button>
-                )}
                 {!extras.isFree && !(selectedClub.paymentModel === "variable" && (selectedClub.minimumContribution ?? 0) === 0) && (
                   <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: total }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                )}
+                {selectedClub.paymentModel === "variable" && (
+                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setPartialAmount(total); setPartialAmountFlash(false); setShowPartialSheet(true); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay a different amount</button>
                 )}
                 {selectedClub.paymentModel === "provisional" && (
                   <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Reserve &amp; pay later</button>
@@ -2595,7 +2850,362 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
-                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
+                    </div>
+                    <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, border: "2px solid #555", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M20 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M14 2V8" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M9 18C9 18 11 21 14 21C17 21 19 18 19 18" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M2 8H6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M22 8H26" stroke="#999" strokeWidth="2" strokeLinecap="round" /></svg>
+                    </div>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "#999" }}>Confirm with Face ID</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-white)", flexShrink: 0, overflow: "hidden" }}>
+              <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* Instance picker — Weekly container. Multi-select week instances; commit inline (paid enrichment). */}
+        {detailPage === "club-detail" && flowStep === "choose-instances" && selectedClub && (() => {
+          const extras = clubExtras[selectedClub.id];
+          // Container-type-aware: same picker handles Weekly, Monthly, Half-term — data + labels swap by selectedBkPeriod.type.
+          const containerType = selectedBkPeriod?.type;
+          const instances = (containerType === "monthly" ? extras.monthInstances : containerType === "halftermly" ? extras.halfTermInstances : extras.weekInstances) || [];
+          const unitWord = containerType === "monthly" ? "month" : containerType === "halftermly" ? "half-term" : "week";
+          const unitPlural = `${unitWord}s`;
+          // Effective state factors in race-at-commit fails — once an instance has raced, treat it as Full visually and in selection logic.
+          const effectiveStateOf = (w) => racedInstanceIds.has(w.id) ? "full" : w.state;
+          const selectedIds = Object.keys(selectedWeeks);
+          const count = selectedIds.length;
+          const total = instances
+            .filter(w => w.id in selectedWeeks)
+            .reduce((sum, w) => sum + (w.state === "prorated" ? w.proratedPrice : w.price), 0);
+          const selectableInstances = instances.filter(w => {
+            const es = effectiveStateOf(w);
+            return es === "available" || es === "prorated";
+          });
+          const allSelected = selectableInstances.length > 0 && selectableInstances.every(w => w.id in selectedWeeks);
+          // Month dividers only useful for week pickers spanning many months. Skip for monthly/half-term (the instance IS the month).
+          const showMonthDividers = containerType === "weekly" && instances.length >= 8;
+          const monthOf = (w) => (w.start || "").split(" ").slice(-1)[0];
+          const grouped = [];
+          if (showMonthDividers) {
+            let prev = null;
+            instances.forEach(w => {
+              const m = monthOf(w);
+              if (m !== prev) { grouped.push({ kind: "header", label: `${m} 2026` }); prev = m; }
+              grouped.push({ kind: "row", w });
+            });
+          } else {
+            instances.forEach(w => grouped.push({ kind: "row", w }));
+          }
+          return (
+          <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-bg-secondary)", position: "relative" }}>
+            <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
+              <div style={{ width: 120, height: 28, background: "#222", borderRadius: 14, display: isMobile ? "none" : "block" }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 12px", flexShrink: 0, background: "var(--color-white)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
+              <button onClick={() => { setFlowStep(null); setClubDatesError(false); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, flex: 1, minWidth: 0, padding: "0 8px" }}>
+                <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedClub.title}</span>
+                <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>For {selectedChild.name}</span>
+              </div>
+              <button onClick={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); setSelectedBkPeriod(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px", background: "var(--color-bg-secondary)", display: "flex", flexDirection: "column", gap: 12 }}>
+              {selectableInstances.length > 1 && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={() => {
+                      if (allSelected) setSelectedWeeks({});
+                      else { const next = {}; selectableInstances.forEach(w => { next[w.id] = true; }); setSelectedWeeks(next); }
+                      setClubDatesError(false);
+                    }}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", fontWeight: 500 }}>{allSelected ? "Deselect all" : "Select all"}</span>
+                  </button>
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {grouped.map((item, idx) => {
+                  if (item.kind === "header") {
+                    return (
+                      <div key={`hdr-${idx}`} style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", margin: idx === 0 ? "0 0 4px" : "8px 0 4px" }}>{item.label}</div>
+                    );
+                  }
+                  const w = item.w;
+                  const eState = effectiveStateOf(w);
+                  const isBreak = eState === "break";
+                  // Break rows render as inline dividers (no card chrome) so the selectable cards stand out as the clickable elements.
+                  if (isBreak) {
+                    return (
+                      <div key={w.id} style={{ display: "flex", alignItems: "center", padding: "4px 12px", gap: 10 }}>
+                        <Calendar size={14} color="var(--color-text-tertiary)" strokeWidth={1.5} />
+                        <span style={{ flex: 1, minWidth: 0, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{w.label}</span>
+                        <span style={{ flexShrink: 0 }}><Tag variant="neutral">{w.breakLabel || "Half term"}</Tag></span>
+                      </div>
+                    );
+                  }
+                  const isSelected = w.id in selectedWeeks;
+                  const isExpanded = w.id in expandedInstances;
+                  const isAvailable = eState === "available";
+                  const isProrated = eState === "prorated";
+                  const isInteractive = isAvailable || isProrated;
+                  const isBooked = eState === "booked";
+                  const isFull = eState === "full";
+                  const isIncluded = eState === "included";
+                  const isExpandable = !isFull; // Full doesn't disclose anything
+                  const dateRange = w.label || `${w.start} – ${w.end}`;
+                  const bookedSet = new Set(w.bookedSessions || []);
+                  const sessionEntries = (w.sessions || []).map(sid => extras.sessionDates.find(d => d.id === sid)).filter(Boolean);
+                  const toggleSelect = () => {
+                    const next = { ...selectedWeeks };
+                    if (isSelected) delete next[w.id]; else next[w.id] = true;
+                    setSelectedWeeks(next);
+                    setClubDatesError(false);
+                  };
+                  const toggleExpand = () => {
+                    setExpandedInstances(prev => { const n = { ...prev }; if (n[w.id]) delete n[w.id]; else n[w.id] = true; return n; });
+                  };
+                  return (
+                    <div key={w.id} style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", overflow: "hidden" }}>
+                      <div style={{ display: "flex", alignItems: "stretch" }}>
+                        {/* Body — tap to select (interactive) or expand (booked/included) */}
+                        <button
+                          onClick={() => { if (isInteractive) toggleSelect(); else if (isExpandable) toggleExpand(); }}
+                          style={{ flex: 1, display: "flex", alignItems: "flex-start", padding: "12px 16px", gap: 10, background: "none", border: "none", cursor: (isInteractive || isExpandable) ? "pointer" : "default", fontFamily: "inherit", textAlign: "left" }}>
+                          {isInteractive ? (
+                            <div style={{ width: 16, height: 16, borderRadius: 4, border: isSelected ? "1px solid var(--color-brand-600)" : "1px solid var(--color-border-strong)", background: isSelected ? "var(--color-brand-600)" : "var(--color-white)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                              {isSelected && <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><path d="M3 7L6 10L11 4" stroke="var(--color-white)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                            </div>
+                          ) : (
+                            <div style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }} />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {(isBooked || isFull || isIncluded) ? (
+                              /* Tag states: text column on the left + vertically-centred tag on the right */
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-grey-600)", fontWeight: 500, textDecoration: isFull ? "line-through" : "none" }}>{dateRange}</span>
+                                  {isBooked && (() => {
+                                    const n = (w.bookedSessions || []).length;
+                                    if (n === 0) return null;
+                                    return <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{n} session{n === 1 ? "" : "s"} already booked</span>;
+                                  })()}
+                                  {isIncluded && w.includedNote && (
+                                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{w.includedNote}</span>
+                                  )}
+                                </div>
+                                <span style={{ flexShrink: 0 }}><Tag variant="neutral">{isBooked ? "Booked" : isFull ? "Full" : "Included"}</Tag></span>
+                              </div>
+                            ) : (
+                              /* Available + Pro-rated: 2-row layout, prices align baseline on each row */
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                                  <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", fontWeight: 500 }}>{dateRange}</span>
+                                  {isProrated && (
+                                    <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", fontWeight: 600, textDecoration: "line-through", opacity: 0.55 }}>£{w.price}</span>
+                                  )}
+                                </div>
+                                {isProrated && (() => {
+                                  const coveredCount = (w.sessions || []).length;
+                                  if (coveredCount === 0) return null;
+                                  const coverText = `Only ${coveredCount} session${coveredCount === 1 ? "" : "s"}`;
+                                  return (
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{coverText}</span>
+                                      <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", fontWeight: 600 }}>£{w.proratedPrice}</span>
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                        {/* Chevron — separate hit target so parents can expand without toggling selection */}
+                        {isExpandable && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
+                            style={{ flexShrink: 0, width: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                            aria-label={isExpanded ? "Collapse" : "Expand"}>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}><path d="M4 6L8 10L12 6" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                          </button>
+                        )}
+                      </div>
+                      {/* Expanded content — session list, each row shows date + time (or Booked tag if conflict) */}
+                      {isExpanded && isExpandable && (
+                        <div style={{ padding: "0 16px 14px" }}>
+                          <div style={{ height: 1, background: "var(--color-grey-100)", marginBottom: 4 }} />
+                          {sessionEntries.length === 0 ? (
+                            <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", padding: "10px 0" }}>No sessions listed</div>
+                          ) : (
+                            sessionEntries.map((s, sIdx) => {
+                              const sessionIsBooked = bookedSet.has(s.id);
+                              return (
+                                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: sIdx === 0 ? "none" : "1px solid var(--color-grey-100)" }}>
+                                  <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)" }}>{s.label}</span>
+                                  {sessionIsBooked
+                                    ? <span style={{ flexShrink: 0 }}><Tag variant="neutral">Booked</Tag></span>
+                                    : <span style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-tertiary)" }}>{selectedClub.time}</span>}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ padding: "12px 16px 20px", boxShadow: "0 -1px 0 rgba(0,0,0,0.06)", flexShrink: 0, background: "var(--color-white)" }}>
+              {clubDatesError && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}><circle cx="7" cy="7" r="6" stroke="var(--color-text-destructive)" strokeWidth="1.3" /><path d="M7 4V7.5" stroke="var(--color-text-destructive)" strokeWidth="1.3" strokeLinecap="round" /><circle cx="7" cy="10" r="0.8" fill="var(--color-text-destructive)" /></svg>
+                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Pick at least one {unitWord} to continue.</span>
+                </div>
+              )}
+              {count > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-700)" }}>{count} {count !== 1 ? unitPlural : unitWord} selected</span>
+                  <span style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{total.toFixed(2)}</span>
+                </div>
+              )}
+              <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button onClick={() => {
+                  if (count === 0) { setClubDatesError(true); return; }
+                  setClubDatesError(false);
+                  // Race-at-commit gate: any selected instance flagged raceFull triggers the interrupt sheet.
+                  const racedNow = instances.filter(w => w.id in selectedWeeks && w.raceFull && !racedInstanceIds.has(w.id));
+                  if (racedNow.length > 0) {
+                    const failed = racedNow[0];
+                    setRacedInstanceIds(prev => { const n = new Set(prev); n.add(failed.id); return n; });
+                    const nextSel = { ...selectedWeeks };
+                    delete nextSel[failed.id];
+                    setSelectedWeeks(nextSel);
+                    const failedPrice = failed.state === "prorated" ? failed.proratedPrice : failed.price;
+                    setRaceSheet({ scope: "instance", title: failed.label || `${failed.start} – ${failed.end}`, reducedTotal: total - failedPrice, reducedCount: count - 1 });
+                    return;
+                  }
+                  setTakeoverPaymentAmount(total); setPaymentMethod("card"); setCardFilled(false); setShowStripeSheet(true);
+                }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{count > 0 ? `Pay now · £${total.toFixed(2)}` : "Pay now"}</button>
+                {/* Add to basket — hidden for voluntary (min=0) per existing pattern; basket is offered inside the contribution sheet after picking an amount. */}
+                {!(selectedClub.paymentModel === "variable" && (selectedClub.minimumContribution ?? 0) === 0) && (
+                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: total }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                )}
+                {/* Pay a different amount — variable clubs only. Opens contribution sheet with scaled overrides. */}
+                {selectedClub.paymentModel === "variable" && (
+                  <button onClick={() => {
+                    if (count === 0) { setClubDatesError(true); return; }
+                    setClubDatesError(false);
+                    const scaledMin = (selectedClub.minimumContribution ?? 0) * count;
+                    setPartialMinOverride(scaledMin);
+                    setPartialMaxOverride(total);
+                    setPartialAmount(total);
+                    setPartialAmountFlash(false);
+                    setShowPartialSheet(true);
+                  }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay a different amount</button>
+                )}
+              </div>
+            </div>
+            {/* Race-at-commit interrupt for the instance picker. Failed instance was removed from selection; parent can pay the reduced total or return to pick more. */}
+            {raceSheet?.scope === "instance" && (
+              <div onClick={() => setRaceSheet(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 30 }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column" }}>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px", flexShrink: 0 }}>
+                    <button onClick={() => setRaceSheet(null)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                    </button>
+                  </div>
+                  <div style={{ padding: "0 20px 8px", textAlign: "center" }}>
+                    <div style={{ fontSize: "var(--font-size-5)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.3 }}>{raceSheet.title} just filled up</div>
+                    <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 8, lineHeight: 1.5 }}>We've taken it out of your selection.</div>
+                  </div>
+                  <div style={{ padding: "20px 16px 28px", flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                    {raceSheet.reducedCount > 0 && (
+                      <button onClick={() => { const amt = raceSheet.reducedTotal; setRaceSheet(null); setTakeoverPaymentAmount(amt); setPaymentMethod("card"); setCardFilled(false); setShowStripeSheet(true); }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay £{raceSheet.reducedTotal.toFixed(2)} — {raceSheet.reducedCount} {raceSheet.reducedCount === 1 ? unitWord : unitPlural}</button>
+                    )}
+                    <button onClick={() => setRaceSheet(null)} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Choose {unitPlural}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showStripeSheet && !extras.isFree && (
+              <div onClick={() => setShowStripeSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 20 }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
+                  <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 16px 8px" }}>
+                    <button onClick={() => setShowStripeSheet(false)} style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-bg-secondary)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/><path d="M10 2L2 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    </button>
+                  </div>
+                  <div style={{ padding: "0 16px 4px" }}>
+                    <button onClick={() => { setShowStripeSheet(false); setShowApplePay(true); setTimeout(() => { setShowApplePay(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }, 4500); }} style={{ width: "100%", padding: "13px", borderRadius: 8, border: "none", background: "#000", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, fontFamily: "inherit" }}>
+                      <svg width="16" height="19" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)"/><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)"/></svg>
+                      <span>Pay</span>
+                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>Or pay using</span>
+                      <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>Saved</div>
+                    <div style={{ border: "2px solid #5469d4", borderRadius: 8, padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                        <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#eb001b", marginRight: -7, zIndex: 1 }} />
+                        <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#f79e1b" }} />
+                      </div>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1 }}>···· 7492</span>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "#5469d4" }}>View more ›</span>
+                    </div>
+                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>New payment method</div>
+                    <div style={{ border: "1px solid var(--color-border-default)", borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+                      <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                        <div style={{ width: 34, height: 24, borderRadius: 4, background: "var(--color-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="13" viewBox="0 0 18 13" fill="none"><rect x="0.5" y="0.5" width="17" height="12" rx="1.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/><path d="M0.5 4H17.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/></svg>
+                        </div>
+                        <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1, textAlign: "left" }}>New card</span>
+                        <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1 1L7 6.5L1 12" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                    </div>
+                    <button onClick={() => { setShowStripeSheet(false); setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#5469d4", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
+                      <span>Pay £{total.toFixed(2)}</span>
+                      <svg width="13" height="15" viewBox="0 0 13 15" fill="none"><path d="M2.5 6.5V4.5C2.5 2.57 4.07 1 6 1C7.93 1 9.5 2.57 9.5 4.5V6.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.3" strokeLinecap="round"/><rect x="1" y="6.5" width="11" height="8" rx="1.5" fill="rgba(255,255,255,0.9)"/><circle cx="6.5" cy="10.5" r="1.2" fill="#5469d4"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {showApplePay && !extras.isFree && (
+              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 30 }}>
+                <div style={{ background: "#1c1c1e", borderRadius: "16px 16px 0 0", padding: "20px 20px 30px", color: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                    <button onClick={() => setShowApplePay(false)} style={{ background: "none", border: "none", color: "#0a84ff", fontSize: "var(--font-size-4)", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                    <svg width="16" height="20" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)" /><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)" /></svg>
+                  </div>
+                  <div style={{ textAlign: "center", marginBottom: 24 }}>
+                    <div style={{ fontSize: "var(--font-size-3)", color: "#999", marginBottom: 4 }}>ARBOR EDUCATION</div>
+                    <div style={{ fontSize: "var(--font-size-7)", fontWeight: 700, color: "#fff" }}>£{total.toFixed(2)}</div>
+                  </div>
+                  <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
                     </div>
                     <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
@@ -2630,6 +3240,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           const singleDayAbbrev = isTerm ? selectedClub.days.trim() : selectedDayAbbrevs[0];
           const hasOptions = !!selectedClub.bookingNote;
           const paymentBackStep = bookingOption === "individual" ? "choose-dates" : null;
+          const sessionUnit = "session"; // weekly skips this review step, but keep variable defined to satisfy JSX reference
           return (
           <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-bg-secondary)", position: "relative" }}>
             <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
@@ -2670,7 +3281,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <>
                     <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)" }}>{sessionCount} sessions</span>
+                      <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)" }}>{sessionCount} {sessionUnit}{sessionCount === 1 ? "" : "s"}</span>
                       <button onClick={() => setReviewDatesExpanded(!reviewDatesExpanded)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
                         <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2 }}>View dates</span>
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: reviewDatesExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><path d="M3 4.5L6 7.5L9 4.5" stroke="var(--color-brand-600)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -2796,7 +3407,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
-                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
                     </div>
                     <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
@@ -2820,22 +3431,47 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         {detailPage === "club-detail" && flowStep === "confirmed" && selectedClub && (() => {
           const extras = clubExtras[selectedClub.id];
           const isTerm = bookingOption === "term";
-          const count = Object.keys(selectedDates).length;
+          // Instance-picker types share their confirmation path. selectedBkPeriod.type tells us which data source + unit word.
+          const confType = selectedBkPeriod?.type;
+          const isInstancePicker = confType === "weekly" || confType === "monthly" || confType === "halftermly";
+          const instancesForConfirm = (confType === "monthly" ? extras.monthInstances : confType === "halftermly" ? extras.halfTermInstances : extras.weekInstances) || [];
+          const count = isInstancePicker ? Object.keys(selectedWeeks).length : Object.keys(selectedDates).length;
           const confDayKey = selectedBkPeriod?.dayKey;
-          const sessionCount = isTerm ? extras.sessionDates.filter(d => !d.past && d.active !== false && (!confDayKey || d.dayKey === confDayKey)).length : count;
+          // Block-period explicit session list (e.g. Music Programme termly = Autumn only, not the whole year). Falls back to filtering all sessionDates.
+          const blockSessions = (confType === "termly" || confType === "yearly") && Array.isArray(selectedBkPeriod?.sessions)
+            ? selectedBkPeriod.sessions.map(sid => extras.sessionDates.find(d => d.id === sid)).filter(Boolean)
+            : null;
+          // sessionCount reads as actual sessions (not containers) across all booking types.
+          const sessionCount = isInstancePicker
+            ? instancesForConfirm.filter(w => w.id in selectedWeeks).reduce((sum, w) => sum + (w.sessions || []).length, 0)
+            : blockSessions ? blockSessions.length
+            : isTerm ? extras.sessionDates.filter(d => !d.past && d.active !== false && (!confDayKey || d.dayKey === confDayKey)).length : count;
           const total = selectedClub.paymentModel === "variable"
             ? takeoverPaymentAmount
-            : (isTerm ? (selectedBkPeriod?.price ?? extras.blockPrice) : count * extras.perSessionPrice);
+            : isInstancePicker
+              ? instancesForConfirm.filter(w => w.id in selectedWeeks).reduce((sum, w) => sum + (w.state === "prorated" ? w.proratedPrice : w.price), 0)
+              : (isTerm ? (selectedBkPeriod?.price ?? extras.blockPrice) : count * extras.perSessionPrice);
           const dateLabels = Object.fromEntries(extras.sessionDates.map(d => [d.id, d.label]));
-          const confDates = isTerm
-            ? extras.sessionDates.filter(d => !d.past).map(d => ({ ...d, time: selectedClub.time }))
-            : Object.keys(selectedDates).map(id => ({ id, label: dateLabels[id] || id, active: true, time: selectedClub.time }));
+          const confDates = isInstancePicker
+            ? instancesForConfirm
+                .filter(w => w.id in selectedWeeks)
+                .flatMap(w => (w.sessions || []).map(sid => {
+                  const s = extras.sessionDates.find(d => d.id === sid);
+                  return s ? { id: s.id, label: s.label, active: s.active !== false, time: selectedClub.time } : null;
+                }))
+                .filter(Boolean)
+            : blockSessions
+              ? blockSessions.map(s => ({ id: s.id, label: s.label, active: s.active !== false, time: selectedClub.time }))
+              : isTerm
+                ? extras.sessionDates.filter(d => !d.past).map(d => ({ ...d, time: selectedClub.time }))
+                : Object.keys(selectedDates).map(id => ({ id, label: dateLabels[id] || id, active: true, time: selectedClub.time }));
           return (
             <BookingConfirmedScreen
               isMobile={isMobile}
               clubName={selectedClub.title}
               childName={selectedChild.name}
               days={sessionCount === 1 ? (confDates[0]?.label ?? selectedClub.days) : selectedClub.days}
+              startYear={parseInt((selectedClub.termDates || "").match(/\d{4}/)?.[0] || "2026", 10)}
               time={selectedClub.time}
               location={selectedClub.location}
               clubLead={selectedClub.clubLead}
@@ -2860,20 +3496,27 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
         {/* Variable contribution — Choose amount sheet (browse flow) */}
         {detailPage === "club-detail" && showPartialSheet && selectedClub?.paymentModel === "variable" && (() => {
-          const minContrib = selectedClub.minimumContribution ?? 0;
-          const hasTotal = minContrib > 0;
-          const maxAmount = hasTotal ? selectedClub.suggestedAmount : Infinity;
+          // Picker context may override the club-level min/suggested with scaled (N × period) values. Otherwise fall back to club defaults.
+          const overrideActive = partialMaxOverride !== null;
+          const minContrib = overrideActive ? (partialMinOverride ?? 0) : (selectedClub.minimumContribution ?? 0);
+          const fallbackHasMax = (selectedClub.minimumContribution ?? 0) > 0;
+          const maxAmount = overrideActive ? partialMaxOverride : (fallbackHasMax ? selectedClub.suggestedAmount : Infinity);
+          const hasTotal = overrideActive || minContrib > 0;
           const belowMin = partialAmount < minContrib;
           const aboveMax = hasTotal && partialAmount > maxAmount;
           const invalid = belowMin || aboveMax;
+          // Balance-due caption: only for min-threshold variable (min > 0) when partial < max and the club has a term-end date to land on.
+          const balanceDeadline = selectedClub.termDates?.includes("–") ? selectedClub.termDates.split("–")[1].trim() : null;
+          const showBalanceCaption = !invalid && minContrib > 0 && partialAmount < maxAmount && balanceDeadline;
+          const closePartialSheet = () => { setShowPartialSheet(false); setPartialMinOverride(null); setPartialMaxOverride(null); };
           return (
-            <div onClick={() => setShowPartialSheet(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 40, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+            <div onClick={closePartialSheet} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 40, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
               <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
                   <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px" }}>
-                  <button onClick={() => setShowPartialSheet(false)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                  <button onClick={closePartialSheet} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                     <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
                   </button>
                 </div>
@@ -2881,7 +3524,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ textAlign: "center", marginBottom: 28 }}>
                     <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>{minContrib === 0 ? "Choose your contribution" : "Choose amount"}</div>
                     <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>
-                      {minContrib === 0 ? "Pay what you want, including £0" : `Pay £${minContrib}–£${selectedClub.suggestedAmount} today`}
+                      {minContrib === 0 ? (overrideActive ? `Pay £0–£${maxAmount} today` : "Pay what you want, including £0") : `Pay £${minContrib}–£${maxAmount} today`}
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 12 }}>
@@ -2901,6 +3544,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ height: 22, textAlign: "center", marginBottom: 16 }}>
                     {belowMin && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>{`Minimum is £${minContrib}`}</span>}
                     {aboveMax && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>{`Maximum is £${maxAmount}`}</span>}
+                    {showBalanceCaption && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{`Full amount by ${balanceDeadline}`}</span>}
                   </div>
                 </div>
                 <div style={{ padding: "12px 16px 28px", background: "var(--color-white)", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2913,6 +3557,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         return;
                       }
                       setShowPartialSheet(false);
+                      setPartialMinOverride(null);
+                      setPartialMaxOverride(null);
                       setTakeoverPaymentAmount(partialAmount);
                       if (partialAmount === 0) {
                         setConfirmedDatesExpanded(false);
@@ -2937,10 +3583,12 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         return;
                       }
                       setShowPartialSheet(false);
+                      setPartialMinOverride(null);
+                      setPartialMaxOverride(null);
                       setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 }));
                       setBasketToastFading(false);
-                      setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: partialAmount, partialOf: minContrib > 0 && partialAmount < selectedClub.suggestedAmount ? selectedClub.suggestedAmount : undefined });
-                      if (flowStep === "choose-dates") setFlowStep(null);
+                      setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: partialAmount, partialOf: minContrib > 0 && partialAmount < maxAmount ? maxAmount : undefined });
+                      if (flowStep === "choose-dates" || flowStep === "choose-instances") setFlowStep(null);
                     }}
                     className="btn-action"
                     style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
@@ -3001,7 +3649,31 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0, lineHeight: 1.2 }}>For {selectedChild.name}</p>
                   <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
                   {/* Date + time */}
-                  <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{[t.dateRange, t.time].filter(Boolean).join(" · ")}</p>
+                  {(() => {
+                    const isRange = t.dateRange && t.dateRange.includes("–");
+                    if (isRange) {
+                      const [departPart, returnPart] = t.dateRange.split(" – ");
+                      const monthYearMatch = returnPart.match(/([A-Za-z]+ \d{4})$/);
+                      const monthYear = monthYearMatch ? monthYearMatch[1] : "";
+                      const departDate = `${departPart} ${monthYear}`.trim();
+                      const timeParts = t.time ? t.time.split("–") : [];
+                      const departTime = timeParts[0]?.trim();
+                      const returnTime = timeParts[1]?.trim();
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          <div>
+                            <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>Departs</p>
+                            <p style={{ fontSize: "var(--font-size-5)", color: "var(--color-text-primary)", margin: 0 }}>{departDate}{departTime ? ` at ${departTime}` : ""}</p>
+                          </div>
+                          <div>
+                            <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>Returns</p>
+                            <p style={{ fontSize: "var(--font-size-5)", color: "var(--color-text-primary)", margin: 0 }}>{returnPart}{returnTime ? ` at ${returnTime}` : ""}</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return <p style={{ fontSize: "var(--font-size-5)", fontWeight: 500, color: "var(--color-text-primary)", margin: 0 }}>{[t.dateRange, t.time].filter(Boolean).join(" · ")}</p>;
+                  })()}
                   {(t.location || t.clubLead || (!looming && t.deadlineLabel)) && (
                     <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
                       {t.location && (
@@ -3265,7 +3937,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               instalment={isInstalment}
               depositPaid={isInstalment ? takeoverPaymentAmount : undefined}
               balanceRemaining={isInstalment ? Math.max(0, t.totalCost - takeoverPaymentAmount) : undefined}
-              paymentDeadline={isInstalment ? "before the trip" : null}
+              paymentDeadline={isInstalment ? t.installmentDeadline : null}
               onClose={() => { setDetailPage(null); setFlowStep(null); setSelectedClub(null); }}
               onGoToBookings={() => goBookings(isInstalment && (t.totalCost - takeoverPaymentAmount) > 0 ? "needs-attention" : "upcoming")}
               confirmedDatesExpanded={confirmedDatesExpanded}
@@ -3361,60 +4033,79 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       </div>
                     </>
                   )}
-                  <div style={{ marginTop: 24 }}>
-                    <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 12 }}>Booking options</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                      {(() => {
-                        const isFreeConfig = !!wraparoundClubConfig?.isFree;
-                        const termSessions = (wraparoundClubConfig?.sessionDates || []).filter(d => d.active).length || 12;
-                        return [
-                          { id: "individual", title: "Individual sessions", subtitle: "Drop in", price: isFreeConfig ? "Free" : "£10", sessionCount: null, type: "daily" },
-                          { id: "term", title: "Full term", subtitle: "Summer term 2026", price: isFreeConfig ? "Free" : `£${termSessions * 10}`, sessionCount: termSessions, type: "termly" }
-                        ];
-                      })().map(opt => {
-                        const isSelected = bookingOption === opt.id;
-                        const isTermly = opt.type === "termly";
-                        const isFreeConfig = !!wraparoundClubConfig?.isFree;
-                        return (
-                          <button key={opt.id} onClick={() => setBookingOption(opt.id)}
-                            style={{ display: "block", width: "100%", padding: "14px 16px", background: isSelected ? "var(--color-brand-050)" : "var(--color-white)", border: isSelected ? "1px solid var(--color-brand-100)" : "1px solid var(--color-grey-100)", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", position: "relative" }}>
-                            <div style={{ position: "absolute", top: 14, left: 16, width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
+                  {(() => {
+                    const isFreeConfig = !!wraparoundClubConfig?.isFree;
+                    const termSessions = (wraparoundClubConfig?.sessionDates || []).filter(d => d.active).length || 12;
+                    const bkModel = wraparoundClubConfig?.bookingModel ?? "both";
+                    const allOpts = [
+                      { id: "individual", title: "Drop-in", price: isFreeConfig ? "Free" : "£10", type: "daily" },
+                      { id: "term", title: "Summer term 2026", price: isFreeConfig ? "Free" : `£${termSessions * 10}`, type: "termly" },
+                    ];
+                    const opts = bkModel === "daily" ? allOpts.filter(o => o.type === "daily") : bkModel === "termly" ? allOpts.filter(o => o.type === "termly") : allOpts;
+                    if (opts.length === 1) {
+                      const opt = opts[0];
+                      const basis = opt.type === "termly" ? "Full term" : "Per session";
+                      return (
+                        <div style={{ marginTop: 24 }}>
+                          <div style={{ background: "var(--color-grey-050)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{opt.title}</div>
+                              <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{basis}</div>
                             </div>
-                            <div style={{ paddingLeft: 32 }}>
-                              <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{opt.title}</div>
-                              {opt.subtitle && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{opt.subtitle}</div>}
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
-                                <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly && opt.sessionCount ? `${opt.sessionCount} sessions` : ""}</span>
-                                <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
-                                  <span style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)" }}>{opt.price}</span>
-                                  {!isFreeConfig && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly ? "total" : "each"}</span>}
+                            <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>{opt.price}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ marginTop: 24 }}>
+                        <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 12 }}>Booking options</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {opts.map(opt => {
+                            const isSelected = bookingOption === opt.id;
+                            const basis = opt.type === "termly" ? "Full term" : "Per session";
+                            return (
+                              <button key={opt.id} onClick={() => setBookingOption(opt.id)}
+                                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 14px", background: isSelected ? "var(--color-brand-050)" : "var(--color-white)", border: isSelected ? "1px solid var(--color-brand-100)" : "1px solid var(--color-grey-100)", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                                <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
                                 </div>
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{opt.title}</div>
+                                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{basis}</div>
+                                </div>
+                                <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>{opt.price}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
-            {bookingOption && (
-              <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
-                {bookingOption === "individual" && wraparoundClubConfig?.sameDayCutoff && <p style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>{wraparoundClubConfig.sameDayCutoff}</p>}
-                {bookingOption === "term" && wraparoundClubConfig?.blockDeadlineLabel && <p style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {wraparoundClubConfig.blockDeadlineLabel}</p>}
-                {wraparoundClubConfig?.isFree && bookingOption === "term" && <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>}
-                <button onClick={() => {
-                  const isFreeConfig = !!wraparoundClubConfig?.isFree;
-                  if (bookingOption === "individual") { setFlowStep("choose-dates"); setSelectedGridDates({}); }
-                  else if (isFreeConfig) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }
-                  else { setFlowStep("payment"); setReviewDatesExpanded(false); }
-                }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                  {bookingOption === "individual" ? "Choose sessions" : (wraparoundClubConfig?.isFree ? "Confirm booking" : "Continue")}
-                </button>
-              </div>
-            )}
+            {(() => {
+              const bkModel = wraparoundClubConfig?.bookingModel ?? "both";
+              const effectiveWaOption = bookingOption ?? (bkModel === "daily" ? "individual" : bkModel === "termly" ? "term" : null);
+              if (!effectiveWaOption) return null;
+              const isFreeConfig = !!wraparoundClubConfig?.isFree;
+              return (
+                <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
+                  {effectiveWaOption === "individual" && wraparoundClubConfig?.sameDayCutoff && <p style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>{wraparoundClubConfig.sameDayCutoff}</p>}
+                  {effectiveWaOption === "term" && wraparoundClubConfig?.blockDeadlineLabel && <p style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-secondary)", textAlign: "center", margin: "0 0 10px" }}>Booking closes {wraparoundClubConfig.blockDeadlineLabel}</p>}
+                  {isFreeConfig && effectiveWaOption === "term" && <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>}
+                  <button onClick={() => {
+                    if (!bookingOption) setBookingOption(effectiveWaOption);
+                    if (effectiveWaOption === "individual") { setFlowStep("choose-dates"); setSelectedGridDates({}); }
+                    else if (isFreeConfig) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }
+                    else { setFlowStep("payment"); setReviewDatesExpanded(false); }
+                  }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    {effectiveWaOption === "individual" ? "Choose sessions" : (isFreeConfig ? "Confirm booking" : "Continue")}
+                  </button>
+                </div>
+              );
+            })()}
             <div style={{ height: isMobile ? 0 : 20, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-bg-secondary)", flexShrink: 0, overflow: "hidden" }}>
               <div style={{ width: 134, height: 5, background: "var(--color-border-default)", borderRadius: 3 }} />
             </div>
@@ -3806,7 +4497,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
-                          <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                          <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
                         </div>
                         <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </div>
@@ -3850,7 +4541,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 <div key={i} style={{ marginBottom: 16 }}>
                   <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-tertiary)", marginBottom: 6 }}>{label}</div>
                   <button onClick={() => setTopUpCardFilled(true)} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", color: topUpCardFilled ? "var(--color-text-primary)" : "var(--color-text-tertiary)", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
-                    {topUpCardFilled ? (i === 0 ? "Kate Burns" : i === 1 ? "4289 3920 1847 5562" : i === 2 ? "09/28" : "••••") : (i === 0 ? "Full name" : i === 1 ? "0000 0000 0000 0000" : i === 2 ? "MM/YY" : "•••")}
+                    {topUpCardFilled ? (i === 0 ? "Kate Brown" : i === 1 ? "4289 3920 1847 5562" : i === 2 ? "09/28" : "••••") : (i === 0 ? "Full name" : i === 1 ? "0000 0000 0000 0000" : i === 2 ? "MM/YY" : "•••")}
                   </button>
                 </div>
               ))}
@@ -3901,6 +4592,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               isFree={isFreeConfig}
               fromAccount={!isFreeConfig}
               total={total}
+              accountBalanceAfter={isFreeConfig ? null : wraparoundBalance - total}
+              onTopUp={() => { setStandaloneTopUpAccount("wraparound"); setTopUpAmount(Math.max(2, Math.ceil(total - wraparoundBalance))); setShowStandaloneTopUp(true); setStandaloneTopUpAddedToBasket(false); setStandaloneTopUpSuccess(false); }}
               onClose={() => { setDetailPage(null); setFlowStep(null); setToppedUpAmount(0); }}
               onGoToBookings={() => { setFlowStep(null); setBookingNudgeRating(null); setDetailPage(null); setSelectedClub(null); setActiveTab("book-pay"); setBookingsFilter("upcoming"); setSubPage("my-bookings"); }}
               confirmedDatesExpanded={confirmedDatesExpanded}
@@ -4020,57 +4713,40 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       </>
                     )}
                     <div style={{ marginTop: 24 }}>
-                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 12 }}>Booking options</div>
+                      {!isSingle && <div style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-text-primary)", marginBottom: 12 }}>Booking options</div>}
                       {isSingle ? (() => {
                         const period = sortedPeriods[0];
-                        const isTermly = period.type === "termly";
+                        const isTermly = period.type === "termly" || period.type === "yearly";
                         const price = fmtPrice(period.price);
-                        const subtitle = getSubtitle(period);
-                        const sessionCount = isTermly ? (period.sessionsRemaining ?? null) : null;
+                        const basis = isTermly ? "Full term" : "Per session";
                         return (
-                          <div style={{ background: "var(--color-brand-050)", border: "1px solid var(--color-brand-100)", borderRadius: 8, padding: "14px 16px", position: "relative" }}>
-                            <div style={{ position: "absolute", top: 14, left: 16, width: 20, height: 20, borderRadius: "50%", border: "2px solid var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />
+                          <div style={{ background: "var(--color-grey-050)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{isTermly ? "Summer term 2026" : "Drop-in"}</div>
+                              <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{basis}</div>
                             </div>
-                            <div style={{ paddingLeft: 32 }}>
-                              <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{isTermly ? "Full term" : "Individual sessions"}</div>
-                              {subtitle && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>}
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
-                                <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly && sessionCount ? `${sessionCount} sessions` : ""}</span>
-                                <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
-                                  <span style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)" }}>{price}</span>
-                                  {!bkIsFree && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly ? "total" : "each"}</span>}
-                                </div>
-                              </div>
-                            </div>
+                            <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>{price}</span>
                           </div>
                         );
                       })() : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                           {sortedPeriods.map(period => {
                             const isSelected = selectedBkPeriod?.id === period.id;
-                            const isTermly = period.type === "termly";
+                            const isTermly = period.type === "termly" || period.type === "yearly";
                             const price = fmtPrice(period.price);
-                            const subtitle = getSubtitle(period);
-                            const sessionCount = isTermly ? (period.sessionsRemaining ?? null) : null;
+                            const basis = isTermly ? "Full term" : "Per session";
                             return (
                               <button key={period.id}
                                 onClick={(e) => { setSelectedBkPeriod(period); setBookingOption(isTermly ? "term" : "individual"); scrollAfterRender(e.currentTarget); }}
-                                style={{ display: "block", width: "100%", padding: "14px 16px", background: isSelected ? "var(--color-brand-050)" : "var(--color-white)", border: isSelected ? "1px solid var(--color-brand-100)" : "1px solid var(--color-grey-100)", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left", position: "relative" }}>
-                                <div style={{ position: "absolute", top: 14, left: 16, width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "12px 14px", background: isSelected ? "var(--color-brand-050)" : "var(--color-white)", border: isSelected ? "1px solid var(--color-brand-100)" : "1px solid var(--color-grey-100)", borderRadius: 10, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+                                <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                                   {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
                                 </div>
-                                <div style={{ paddingLeft: 32 }}>
-                                  <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{isTermly ? "Full term" : "Individual sessions"}</div>
-                                  {subtitle && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{subtitle}</div>}
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
-                                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly && sessionCount ? `${sessionCount} sessions` : ""}</span>
-                                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexShrink: 0 }}>
-                                      <span style={{ fontSize: "var(--font-size-6)", fontWeight: 700, color: "var(--color-text-primary)" }}>{price}</span>
-                                      {!bkIsFree && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{isTermly ? "total" : "each"}</span>}
-                                    </div>
-                                  </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{isTermly ? "Summer term 2026" : "Drop-in"}</div>
+                                  <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{basis}</div>
                                 </div>
+                                <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>{price}</span>
                               </button>
                             );
                           })}
@@ -4115,7 +4791,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             if (activeBkTimesVary && activeBkDaysVary) return `${expandDay(period.days)} · ${period.start}–${period.end}`;
             if (activeBkTimesVary) return `${period.start}–${period.end}`;
             if (activeBkDaysVary)  return expandDay(period.days);
-            return period.type === "daily" ? "Individual sessions" : "All sessions";
+            return period.type === "daily" ? "Drop-in" : "Summer term 2026";
           };
           const getBkSubtitle = (period) => {
             if (period.type !== "daily") return null;
@@ -4149,26 +4825,35 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 <div style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-grey-900)", marginTop: 2 }}>Mon–Fri</div>
                 <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-grey-500)", marginTop: 3 }}>For {selectedChild.name}</div>
               </div>
-              {/* One card per membership period. Each period is either daily or termly — set by school in Arbor. */}
-              {sortedBkPeriods.map((period) => {
+              {/* One card per membership period. Single period = grey card; multiple = radio cards. */}
+              {sortedBkPeriods.length === 1 ? (() => {
+                const period = sortedBkPeriods[0];
+                const isTermly = period.type === "termly" || period.type === "yearly";
+                const basis = isTermly ? "Full term" : "Per session";
+                return (
+                  <div style={{ background: "var(--color-white)", borderRadius: 10, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, border: "1px solid var(--color-grey-100)" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{getBkTitle(period)}</div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{basis}</div>
+                    </div>
+                    <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>£{period.price}</span>
+                  </div>
+                );
+              })() : sortedBkPeriods.map((period) => {
                 const isSelected = effectiveBkPeriod?.id === period.id;
-                const isTermly = period.type === "termly";
-                const subtitle = getBkSubtitle(period);
+                const isTermly = period.type === "termly" || period.type === "yearly";
+                const basis = isTermly ? "Full term" : "Per session";
                 return (
                   <button key={period.id} onClick={() => { setSelectedBkPeriod(period); setBookingOption(isTermly ? "term" : "individual"); setTermExpanded(false); }}
-                    style={{ display: "flex", alignItems: "center", width: "100%", padding: isSelected ? "13px 15px" : "14px 16px", background: "#fff", borderRadius: 12, border: isSelected ? "2px solid var(--color-brand-600)" : "1px solid var(--color-grey-100)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", gap: 12 }}>
+                    style={{ display: "flex", alignItems: "center", width: "100%", padding: "12px 14px", background: isSelected ? "var(--color-brand-050)" : "#fff", borderRadius: 10, border: isSelected ? "1px solid var(--color-brand-100)" : "1px solid var(--color-grey-100)", cursor: "pointer", fontFamily: "inherit", textAlign: "left", gap: 12 }}>
                     <div style={{ width: 20, height: 20, borderRadius: "50%", border: isSelected ? "2px solid var(--color-brand-600)" : "2px solid var(--color-border-strong)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "var(--color-brand-600)" }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{getBkTitle(period)}</div>
-                      {subtitle && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{subtitle}</div>}
-                      {isTermly && period.sessionsRemaining && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{period.sessionsRemaining} sessions remaining</div>}
+                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{getBkTitle(period)}</div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>{basis}</div>
                     </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.2 }}>£{period.price}</div>
-                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 1 }}>{isTermly ? "all sessions" : "per session"}</div>
-                    </div>
+                    <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", flexShrink: 0 }}>£{period.price}</span>
                   </button>
                 );
               })}
@@ -4663,7 +5348,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
-                          <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                          <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
                         </div>
                         <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </div>
@@ -4707,6 +5392,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               isFree={false}
               fromAccount={true}
               total={total}
+              accountBalanceAfter={wraparoundBalance - total}
+              onTopUp={() => { setStandaloneTopUpAccount("wraparound"); setTopUpAmount(Math.max(2, Math.ceil(total - wraparoundBalance))); setShowStandaloneTopUp(true); setStandaloneTopUpAddedToBasket(false); setStandaloneTopUpSuccess(false); }}
               onClose={() => { setDetailPage(null); setFlowStep(null); }}
               onGoToBookings={() => { setFlowStep(null); setBookingNudgeRating(null); setDetailPage(null); setSelectedClub(null); setActiveTab("book-pay"); setBookingsFilter("upcoming"); setSubPage("my-bookings"); }}
               confirmedDatesExpanded={confirmedDatesExpanded}
@@ -4867,7 +5554,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                           )}
                         </div>
                         {bookingDetailDatesExpanded && item.dates && (() => {
-                          const upcomingDates = item.status === "attended" ? item.dates : item.dates.filter(d => !d.past);
+                          const upcomingDates = (item.status === "attended" || item.status === "pending-payment") ? item.dates : item.dates.filter(d => !d.past);
                           const groups = {};
                           upcomingDates.forEach(d => {
                             const parts = d.label.split(" ");
@@ -5191,20 +5878,42 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               return bOverdue - aOverdue;
             });
             const upcomingItems = [
-              { id: "u1", title: "Drumming",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "6 Apr – 17 Jul 2026", nextSession: "Mon 4 May",         child: "Molly", childColour: children[0].avatarColour, sessions: 10, days: "Mon", time: "15:30–16:15", termDates: "6 Apr – 17 Jul 2026", dates: drummingSessionDates, paid: 110, location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance." },
+              { id: "u1", title: "Drumming",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "6 Apr – 17 Jul 2026", nextSession: "Mon 6 Jul",         child: "Molly", childColour: children[0].avatarColour, sessions: 10, days: "Mon", time: "15:30–16:15", termDates: "6 Apr – 17 Jul 2026", dates: drummingSessionDates, paid: 110, location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance." },
               { id: "u2", title: "Breakfast club",   category: "Wraparound",       status: "confirmed", icon: <SunMoon size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,  sub: "Mon 7 – Fri 11 Apr",                      child: "Molly", childColour: children[0].avatarColour, sessions: 5, days: "Mon – Fri", time: "07:45–08:30", paid: 25, location: "Dining Hall", clubLead: "School staff", description: "Start the day right with our breakfast club. Children enjoy a healthy breakfast including toast, cereal, fruit and juice, with time for reading, drawing and quiet activities before the school day begins. Staff supervise children and ensure they're ready for class.", dates: [{ id: "bk-apr7", label: "Mon 7 Apr", active: true }, { id: "bk-apr8", label: "Tue 8 Apr", active: true }, { id: "bk-apr9", label: "Wed 9 Apr", active: true }, { id: "bk-apr10", label: "Thu 10 Apr", active: true }, { id: "bk-apr11", label: "Fri 11 Apr", active: true }] },
-              { id: "u3", title: "Football",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "Tue 8 Apr",                                 child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Tue", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-apr8", label: "Tue 8 Apr" }] },
+              { id: "u3", title: "Football",         category: "Club",             status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "Fri 3 Jul",                                 child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Fri", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-jul3", label: "Fri 3 Jul" }] },
               { id: "u5", title: "Year 3 farm visit", category: "Trip", status: "confirmed", icon: <Bus size={24} color={catColours["Trip"].iconColor} strokeWidth={1.5} />, dateRange: "Fri 17 Apr 2026", sub: "Fri 17 Apr 2026", time: "09:00 – 14:30", child: "Molly", childColour: children[0].avatarColour, paid: 14, location: "Oakwood Farm Park", clubLead: "Miss Bennett", description: "A day at Oakwood Farm Park for Year 3, meeting the animals and taking part in a guided minibeast workshop. Travel by coach with school staff. Children should bring a packed lunch." },
               choirBooking,
               ...(pglTrip.balanceOwed === 0 ? [{ ...pglTrip, status: "confirmed", paid: pglTrip.totalCost, paymentModel: undefined }] : []),
               ...(archeryBooking.balanceOwed === 0 ? [{ ...archeryBooking, status: "confirmed", paid: archeryBooking.totalCost, paymentModel: undefined }] : []),
               // ── Lucas (Year 6, Oakwood Primary) ──
-              { id: "lu1", title: "Chess club", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "6 Apr – 17 Jul 2026", nextSession: "Mon 15 Jun", child: "Lucas", childColour: children[1].avatarColour, sessions: 10, days: "Mon", time: "15:30–16:30", termDates: "6 Apr – 17 Jul 2026", dates: secMonDates, paid: 0, location: "Library", clubLead: "Mr Harris", description: "Chess Club builds focus, strategy and problem-solving in a friendly setting, from first moves through to club tournaments." },
+              { id: "lu1", title: "Chess club", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "6 Apr – 17 Jul 2026", nextSession: "Mon 6 Jul", child: "Lucas", childColour: children[1].avatarColour, sessions: 10, days: "Mon", time: "15:30–16:30", termDates: "6 Apr – 17 Jul 2026", dates: secMonDates, paid: 0, location: "Library", clubLead: "Mr Harris", description: "Chess Club builds focus, strategy and problem-solving in a friendly setting, from first moves through to club tournaments." },
               { id: "lu2", title: "Football", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Tue 9 Jun", child: "Lucas", childColour: children[1].avatarColour, sessions: 1, days: "Tue", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment.", dates: [{ id: "lu-fb-jun9", label: "Tue 9 Jun" }] },
               // ── Ethan (Year 9, Riverside Secondary) ──
               { id: "et1", title: "Football", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Tue 9 Jun", child: "Ethan", childColour: children[2].avatarColour, sessions: 1, days: "Tue", time: "15:45–17:00", paid: 6, location: "Sports Hall", clubLead: "Mr Reed", description: "Competitive and recreational football coaching building fitness, technique and teamwork ahead of inter-school fixtures.", dates: [{ id: "et-fb-jun9", label: "Tue 9 Jun" }] },
-              { id: "et2", title: "Debate club", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "6 Apr – 17 Jul 2026", nextSession: "Thu 11 Jun", child: "Ethan", childColour: children[2].avatarColour, sessions: 10, days: "Thu", time: "16:00–17:00", termDates: "6 Apr – 17 Jul 2026", dates: secThuDates, paid: 0, location: "Room 14", clubLead: "Ms Okafor", description: "A weekly forum for developing public speaking, argument and critical thinking, with regular debates and inter-school competitions." },
+              { id: "et2", title: "Debate club", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "6 Apr – 17 Jul 2026", nextSession: "Thu 2 Jul", child: "Ethan", childColour: children[2].avatarColour, sessions: 10, days: "Thu", time: "16:00–17:00", termDates: "6 Apr – 17 Jul 2026", dates: secThuDates, paid: 0, location: "Room 14", clubLead: "Ms Okafor", description: "A weekly forum for developing public speaking, argument and critical thinking, with regular debates and inter-school competitions." },
             ].filter(i => (i.category === "Club" || i.category === "Wraparound" || i.category === "Trip") && i.child === selectedChild.name);
+            // Sort upcoming chronologically by the displayed date (nextSession > dateRange > sub). Parses formats like "Mon 6 Jul", "Fri 17 Apr 2026", "6 Apr – 17 Jul 2026". Unparseable items go to the end.
+            const upcomingMonthIdx = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+            const parseUpcomingDate = (item) => {
+              const raw = item.nextSession || (item.dateRange || "").split("–")[0]?.trim() || (item.sub || "").split("–")[0]?.trim();
+              if (!raw) return new Date(9999, 0, 1);
+              const stripped = raw.replace(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+/i, "");
+              const m = stripped.match(/^(\d+)\s+([A-Za-z]+)(?:\s+(\d{4}))?/);
+              if (!m) return new Date(9999, 0, 1);
+              const day = parseInt(m[1], 10);
+              const monthIndex = upcomingMonthIdx[m[2].substring(0, 3)];
+              if (monthIndex === undefined) return new Date(9999, 0, 1);
+              const year = m[3] ? parseInt(m[3], 10) : 2026;
+              return new Date(year, monthIndex, day);
+            };
+            upcomingItems.sort((a, b) => parseUpcomingDate(a) - parseUpcomingDate(b));
+            // Filter out items whose date is before today (Jun 30 2026 reference) — they move to the past list below.
+            const upcomingToday = new Date(2026, 5, 30);
+            const movedToPast = upcomingItems.filter(i => parseUpcomingDate(i) < upcomingToday);
+            // Mutate upcomingItems in-place to keep only future-dated items.
+            for (let i = upcomingItems.length - 1; i >= 0; i--) {
+              if (parseUpcomingDate(upcomingItems[i]) < upcomingToday) upcomingItems.splice(i, 1);
+            }
             const pastItems = [
               { id: "p0", title: "Parents' evening", category: "Parents' evening", status: "attended", icon: <ParentsEveningIcon size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Thu 10 Apr · 17:40 (10 min slot)", child: "Molly", childColour: children[0].avatarColour },
               { id: "p1", title: "Drumming",       category: "Club",       status: "attended", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />,   sub: "5 Jan – 28 Mar 2026", child: "Molly", childColour: children[0].avatarColour, sessions: 11, paid: 110, days: "Mon", time: "15:30–16:15", location: "Music Block R1", clubLead: "Beat Academy", description: "Our Drumming Club introduces children to the exciting world of percussion in a fun, supportive group setting. They'll develop rhythm, coordination, and timing skills while learning a variety of drumming styles and techniques — building confidence and working towards a group performance.", dates: [{ id: "pd-jan5", label: "Mon 5 Jan" }, { id: "pd-jan12", label: "Mon 12 Jan" }, { id: "pd-jan19", label: "Mon 19 Jan" }, { id: "pd-jan26", label: "Mon 26 Jan" }, { id: "pd-feb2", label: "Mon 2 Feb" }, { id: "pd-feb9", label: "Mon 9 Feb" }, { id: "pd-feb23", label: "Mon 23 Feb" }, { id: "pd-mar2", label: "Mon 2 Mar" }, { id: "pd-mar9", label: "Mon 9 Mar" }, { id: "pd-mar16", label: "Mon 16 Mar" }, { id: "pd-mar23", label: "Mon 23 Mar" }] },
@@ -5220,6 +5929,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               // ── Ethan (Year 9, Riverside Secondary) ──
               { id: "ep1", title: "Football", category: "Club", status: "attended", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Tue 3 Mar", child: "Ethan", childColour: children[2].avatarColour, sessions: 1, paid: 6, days: "Tue", time: "15:45–17:00", location: "Sports Hall", clubLead: "Mr Reed", description: "Competitive and recreational football coaching building fitness, technique and teamwork ahead of inter-school fixtures.", dates: [{ id: "ep-fb-mar3", label: "Tue 3 Mar" }] },
             ].filter(i => (i.category === "Club" || i.category === "Wraparound" || i.category === "Trip") && i.child === selectedChild.name);
+            // Append the items that aged out of "upcoming" and sort the whole past list chronologically (oldest first).
+            pastItems.push(...movedToPast);
+            pastItems.sort((a, b) => parseUpcomingDate(a) - parseUpcomingDate(b));
 
             // If the active filter is "needs attention" but this child has none (e.g. they were switched
             // to while the page was open, or arrived with a stale filter), fall back to Upcoming so the
@@ -5367,6 +6079,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               { id: 1, type: "clubs", title: "Drumming", icon: clubIcon, days: "Mon", dayOrder: [1], time: "15:30\u201316:15", price: "\u00a3110", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 2), deadlineLabel: "2 May", places: 0, full: true, blockOnly: true, location: "Music Block R1", clubLead: "Beat Academy" },
               { id: 16, type: "clubs", title: "Chess club", icon: clubIcon, days: "Mon", dayOrder: [1], time: "15:30\u201316:30", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 5), deadlineLabel: "5 May", places: 24, individualOnly: true, location: "Library", clubLead: "Mr Harris" },
               { id: 5, type: "clubs", title: "Football", icon: clubIcon, days: "Tue, Wed", dayOrder: [2, 3], time: "15:30\u201316:30", price: "\u00a38", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 9), deadlineLabel: "9 May", places: 15, location: "Sports Hall" },
+              { id: 6, type: "clubs", title: "Multi-Sport Club", icon: clubIcon, days: "Mon, Wed, Fri", dayOrder: [1, 3, 5], time: "15:30\u201316:30", price: "\u00a34", priceLabel: "per session", termDates: "29 Jun \u2013 4 Sep 2026", deadline: new Date(2026, 5, 28), deadlineLabel: "28 Jun", places: 18, location: "Sports Hall", clubLead: "Mr Patel" },
+              { id: 47, type: "clubs", title: "Music Programme", icon: clubIcon, days: "Wed", dayOrder: [3], time: "16:00\u201317:00", price: "\u00a360", priceLabel: "per half-term", termDates: "1 Sep 2026 \u2013 17 Jul 2027", deadline: new Date(2026, 7, 28), deadlineLabel: "28 Aug", places: 12, location: "Music Block", clubLead: "Mrs Khan" },
               { id: 18, type: "clubs", title: "Choir", icon: clubIcon, days: "Tue", dayOrder: [2], time: "08:00\u201308:45", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 3, 17), deadlineLabel: "17 Apr", places: 3, raceOnCommit: true, location: "Music Block R2" },
               // ARCHIVED 2026-05-29 \u2014 Coding Club + provisional payment model. Provisional bookings are portal-only for now. Restore by uncommenting (and matching entries in clubBrowseDetails + needsAttentionItems c1).
               // { id: 7, type: "clubs", title: "Coding club", icon: clubIcon, days: "Thu", dayOrder: [4], time: "15:30\u201316:30", price: "\u00a37", priceLabel: "per session", paymentModel: "provisional", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 4, 8), deadlineLabel: "8 May", places: 20, location: "ICT Suite" },
@@ -5380,12 +6094,12 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               { id: 3, type: "wraparound", title: "Breakfast club", icon: wraparoundIcon, days: "Mon \u2013 Fri", dayOrder: [1,2,3,4,5], time: bkTimeDisplay, price: "\u00a35", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", paymentTiming: "Charged per session when your child attends", bookingModel: "daily", sameDayCutoff: "Book by 15:00 the day before", deadline: null, deadlineLabel: null, places: 29, individualOnly: true },
               // \u2500\u2500 Trips \u2500\u2500 one-off events; no recurring days. Sorted by trip date; sign-up deadline shown as a card pill.
               { id: 31, type: "trips", title: "Science Museum", icon: tripIcon, years: ["Year 6"], paymentModel: "fixed", price: "\u00a312", priceLabel: "", cost: 12, dateRange: "Thu 30 Apr 2026", tripDate: new Date(2026, 3, 30), time: "09:00\u201315:30", academicYear: "2025/2026", deadline: new Date(2026, 3, 16), deadlineLabel: "16 Apr", places: 18, location: "Science Museum, South Kensington", clubLead: "Mr Harris" },
-              { id: 33, type: "trips", title: "Year 4 residential \u2013 PGL", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3185", priceLabel: "", totalCost: 185, deposit: 85, installmentDeadline: "before the trip", dateRange: "Tue 12 \u2013 Thu 14 May 2026", tripDate: new Date(2026, 4, 12), time: "08:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 3, 30), deadlineLabel: "30 Apr", places: 12, location: "Marchants Hill, Surrey", clubLead: "Mrs Hughes" },
+              { id: 33, type: "trips", title: "Year 4 residential \u2013 PGL", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3185", priceLabel: "", totalCost: 185, deposit: 85, installmentDeadline: "1 May 2026", dateRange: "Tue 12 \u2013 Thu 14 May 2026", tripDate: new Date(2026, 4, 12), time: "08:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 3, 30), deadlineLabel: "30 Apr", places: 12, location: "Marchants Hill, Surrey", clubLead: "Mrs Hughes" },
               { id: 32, type: "trips", title: "Local woodland habitat study", icon: tripIcon, years: ["Year 4"], paymentModel: "variable", suggestedAmount: 8, minimumContribution: 0, price: "\u00a38", priceLabel: "", dateRange: "Wed 13 May 2026", tripDate: new Date(2026, 4, 13), time: "09:30\u201312:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 6), deadlineLabel: "6 May", places: 30, location: "Oakwood Local Nature Reserve", clubLead: "Miss Bennett" },
               { id: 4, type: "trips", title: "The Lion King", icon: tripIcon, paymentModel: "free", price: "Free", priceLabel: "", dateRange: "Fri 22 May 2026", tripDate: new Date(2026, 4, 22), time: "11:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 8), deadlineLabel: "8 May", places: 32, location: "Lyceum Theatre, London", clubLead: "Mrs Hughes" },
               { id: 35, type: "trips", title: "Theatre trip \u2013 Matilda", icon: tripIcon, years: ["Year 6"], paymentModel: "fixed", price: "\u00a316", priceLabel: "", cost: 16, full: true, dateRange: "Tue 9 Jun 2026", tripDate: new Date(2026, 5, 9), time: "17:30\u201322:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 22), deadlineLabel: "22 May", places: 0, location: "Cambridge Theatre, London", clubLead: "Mr Harris" },
-              { id: 34, type: "trips", title: "Year 5 residential \u2013 France", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3525", priceLabel: "", totalCost: 525, deposit: 95, installmentDeadline: "before the trip", futureYear: true, dateRange: "Tue 6 \u2013 Sun 11 Jul 2027", tripDate: new Date(2027, 6, 6), time: "06:00\u201320:00", academicYear: "2026/2027", deadline: new Date(2026, 5, 30), deadlineLabel: "30 Jun 2026", places: 40, location: "Normandy, France", clubLead: "Mrs Hughes" },
-              { id: 36, type: "trips", title: "Leavers' residential \u2013 PGL Liddington", icon: tripIcon, years: ["Year 6"], paymentModel: "instalment", price: "\u00a3295", priceLabel: "", totalCost: 295, deposit: 90, installmentDeadline: "before the trip", dateRange: "Mon 6 \u2013 Fri 10 Jul 2026", tripDate: new Date(2026, 6, 6), time: "09:00\u201316:00", academicYear: "2025/2026", deadline: new Date(2026, 5, 19), deadlineLabel: "19 Jun", places: 30, location: "PGL Liddington, Wiltshire", clubLead: "Mr Harris" },
+              { id: 34, type: "trips", title: "Year 5 residential \u2013 France", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3525", priceLabel: "", totalCost: 525, deposit: 95, installmentDeadline: "1 Jun 2027", futureYear: true, dateRange: "Tue 6 \u2013 Sun 11 Jul 2027", tripDate: new Date(2027, 6, 6), time: "06:00\u201320:00", academicYear: "2026/2027", deadline: new Date(2026, 5, 30), deadlineLabel: "30 Jun 2026", places: 40, location: "Normandy, France", clubLead: "Mrs Hughes" },
+              { id: 36, type: "trips", title: "Leavers' residential \u2013 PGL Liddington", icon: tripIcon, years: ["Year 6"], paymentModel: "instalment", price: "\u00a3295", priceLabel: "", totalCost: 295, deposit: 90, installmentDeadline: "30 Jun 2026", dateRange: "Mon 6 \u2013 Fri 10 Jul 2026", tripDate: new Date(2026, 6, 6), time: "09:00\u201316:00", academicYear: "2025/2026", deadline: new Date(2026, 5, 19), deadlineLabel: "19 Jun", places: 30, location: "PGL Liddington, Wiltshire", clubLead: "Mr Harris" },
               // \u2500\u2500 Secondary clubs (Ethan, Riverside Secondary) \u2500\u2500
               { id: 40, type: "clubs", title: "Football", icon: clubIcon, school: "Riverside Secondary", days: "Tue", dayOrder: [2], time: "15:45\u201317:00", price: "\u00a36", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", deadline: null, deadlineLabel: null, places: 18, individualOnly: true, location: "Sports Hall", clubLead: "Mr Reed" },
               { id: 41, type: "clubs", title: "Debate club", icon: clubIcon, school: "Riverside Secondary", days: "Thu", dayOrder: [4], time: "16:00\u201317:00", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: new Date(2026, 5, 18), deadlineLabel: "18 Jun", places: 20, individualOnly: true, location: "Room 14", clubLead: "Ms Okafor" },
@@ -5639,11 +6353,10 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 )}
 
                 {!tripsUnavailable && sorted.map((item) => {
-                  const hasBothOptions = item.type !== "trips" && !item.blockOnly && !item.individualOnly && item.price !== "Free";
+                  const hasBothOptions = item.type !== "trips" && item.type !== "wraparound" && !item.blockOnly && !item.individualOnly && item.price !== "Free";
                   const isVoluntary = item.paymentModel === "variable" && (item.minimumContribution ?? 0) === 0;
                   const isInstalment = item.paymentModel === "instalment";
                   const isMinThreshold = item.paymentModel === "variable" && (item.minimumContribution ?? 0) > 0;
-                  const blockOnlySessions = item.blockOnly ? clubExtras[item.id]?.blockSessions : null;
                   const displayPrice = isInstalment || isMinThreshold
                     ? (isInstalment ? item.price : `£${item.suggestedAmount}`)
                     : isVoluntary
@@ -5655,13 +6368,13 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     ? `£${item.minimumContribution} deposit`
                     : isVoluntary
                     ? "Suggested"
-                    : (blockOnlySessions ? `${blockOnlySessions} sessions` : item.priceLabel);
+                    : (item.blockOnly ? "Full term" : item.priceLabel);
 
                   return (
                   <button
                     key={item.id}
                     onClick={() => {
-                      if ([1, 5, 6, 7, 8, 16, 17, 18, 19, 20, 21, 28, 29, 40, 41, 42, 43, 44, 45, 46].includes(item.id)) { const ps = periodsForClub(item, clubExtras[item.id]); const autoPeriod = ps.length === 1 ? ps[0] : null; setDetailPage("club-detail"); setSelectedClub(raceFilledIds.has(item.id) ? { ...item, full: true } : item); setFlowStep(null); setSelectedBkPeriod(autoPeriod); setBookingOption(autoPeriod ? (autoPeriod.type === "termly" ? "term" : "individual") : null); setTermExpanded(false); setSelectedDates({}); setClubDatesError(false); setClubCardError(false); setCardFilled(false); setBkAboutExpanded(false); setDetailDatesExpanded(false); }
+                      if ([1, 5, 6, 7, 8, 16, 17, 18, 19, 20, 21, 28, 29, 40, 41, 42, 43, 44, 45, 46, 47].includes(item.id)) { const ps = periodsForClub(item, clubExtras[item.id]); const autoPeriod = ps.length === 1 ? ps[0] : null; setDetailPage("club-detail"); setSelectedClub(raceFilledIds.has(item.id) ? { ...item, full: true } : item); setFlowStep(null); setSelectedBkPeriod(autoPeriod); setBookingOption(autoPeriod ? ((autoPeriod.type === "termly" || autoPeriod.type === "yearly") ? "term" : "individual") : null); setTermExpanded(false); setSelectedDates({}); setClubDatesError(false); setClubCardError(false); setCardFilled(false); setBkAboutExpanded(false); setDetailDatesExpanded(false); }
                       else if ([2, 26, 27].includes(item.id)) { const keys = ["mon","wedFootball","thuRecorder"]; setWraparoundClubConfig(afterSchoolClubConfigs[keys[[2,26,27].indexOf(item.id)]]); setDetailPage("after-school"); setFlowStep(null); setBookingOption(null); setTermExpanded(false); setSelectedGridDates({}); }
                       else if (item.id === 3) { setDetailPage("breakfast"); setFlowStep(null); setConsentChecked(false); setConsentError(false); setBkScenarioId("s1"); setBkIsFree(false); setSelectedBkPeriod(bkPeriodsS1[0]); setBookingOption("individual"); setBkAboutExpanded(false); setTermExpanded(false); setSelectedGridDates2({}); }
                       else if (item.type === "trips") { setDetailPage("trip-detail"); setSelectedClub(item); setFlowStep(null); setConsentChecked(false); setConsentError(false); setBkAboutExpanded(false); setShowPartialSheet(false); setPartialAmount(0); }
@@ -5773,7 +6486,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             const isWraparound = txHistoryAccount === "wraparound";
             const isMilk = txHistoryAccount === "milk";
             const accountName = isWraparound ? "Wraparound account" : isMilk ? "Milk account" : "Meals account";
-            const balance = isWraparound ? wraparoundBalance : isMilk ? -5.20 : mealsBalance;
+            const balance = isWraparound ? wraparoundBalance : isMilk ? milkBalance : mealsBalance;
             const isOverdrawn = balance < 0;
             const isLow = !isOverdrawn && balance <= lowFundsThreshold;
 
@@ -5791,7 +6504,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 { date: "9 Apr",  month: "April 2026", description: "School meal", amount: -2.65 },
                 { date: "8 Apr",  month: "April 2026", description: "School meal", amount: -2.65 },
               ],
-              milk: [
+              milk: [...dynamicTransactions.milk,
                 { date: "29 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
                 { date: "28 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
                 { date: "25 Apr", month: "April 2026", description: "Milk", amount: -0.27 },
@@ -6145,7 +6858,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   {[
                     { id: "meals",      label: "Meals",      balance: mealsBalance,      Icon: Utensils,    showTopUp: true  },
                     { id: "wraparound", label: "Wraparound", balance: wraparoundBalance, Icon: SunMoon,     showTopUp: false },
-                    { id: "milk",       label: "Milk",       balance: 8.50,              Icon: ShoppingBag, showTopUp: false },
+                    { id: "milk",       label: "Milk",       balance: milkBalance,        Icon: ShoppingBag, showTopUp: false },
                   ].map((account, i, arr) => {
                     const isLow = account.balance <= lowFundsThreshold;
                     return (
@@ -6392,7 +7105,6 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 { id: "p5", title: "End-of-year reports published",       time: "All day",                  icon: Book,          child: "Whole school", school: "Oakwood Primary", source: "App booking", sourceIcon: Smartphone },
               ],
               "29-Jun": [
-                { id: "m1", title: "Football club",                       time: "15:30 – 16:30",            icon: Shapes,        child: "Molly", source: "App booking",       sourceIcon: Smartphone,    reminder: "Bring full PE kit and water bottle", upcomingItemId: "u3" },
                 { id: "m2", title: "Year 7 swimming gala",                time: "13:30 – 15:30",            icon: Trophy,        child: "Ethan", source: "Email", sourceIcon: Mail,          reminder: "Swimsuit, towel, goggles · £2 for ice cream" },
                 { id: "m3", title: "Wimbledon week — tennis taster",      time: "Lunchtime · all week",     icon: Trophy,        child: "Lucas", source: "Newsletter",        sourceIcon: Newspaper },
               ],
@@ -6651,7 +7363,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             };
 
             const homeBookingRefs = {
-              "u3": { id: "u3", title: "Football", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Tue 8 Apr", child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Tue", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-apr8", label: "Tue 8 Apr" }] },
+              "u3": { id: "u3", title: "Football", category: "Club", status: "confirmed", icon: <Shapes size={24} color="var(--color-grey-900)" strokeWidth={1.5} />, sub: "Fri 3 Jul", child: "Molly", childColour: children[0].avatarColour, sessions: 1, days: "Fri", time: "15:30–16:30", paid: 8, location: "Sports Hall", description: "Join our Football Club and develop your skills on the pitch in a fun, structured environment. Players work on passing, shooting, and tactical awareness across the term, building teamwork and finishing with a mini tournament.", dates: [{ id: "fb-jul3", label: "Fri 3 Jul" }] },
               "u-choir": choirBooking,
             };
             const openHomeBooking = (itemId) => {
@@ -7559,7 +8271,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           })()}
 
           {!subPage && activeTab === "my-child" && !myChildPage && (
-            <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%", padding: "20px 0 32px", display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ background: "var(--color-bg-secondary)", minHeight: "100%", padding: "20px 0 32px", display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Absences */}
               <div>
                 <div style={{ padding: "0 16px" }}>
@@ -7582,7 +8294,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 return (
                   <div>
                     <div style={{ padding: "0 16px" }}>
-                      <Card padding="none" style={{ cursor: "pointer" }} onClick={() => setMyChildPage("consents")}>
+                      <Card padding="none" style={{ cursor: "pointer" }} onClick={() => { setConsentPageChild(children[0]); setMyChildPage("consents"); }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" }}>
                           <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                             <ClipboardList size={20} color="var(--color-brand-600)" strokeWidth={1.5} />
@@ -7650,7 +8362,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         {selectedChild.name}'s {standaloneTopUpAccount === "meals" ? "Meals" : standaloneTopUpAccount === "milk" ? "Milk" : "Wraparound"}
                       </div>
                       <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>
-                        Current balance · £{(standaloneTopUpAccount === "meals" ? mealsBalance : standaloneTopUpAccount === "milk" ? 8.50 : wraparoundBalance).toFixed(2)}
+                        Current balance · £{(standaloneTopUpAccount === "meals" ? mealsBalance : standaloneTopUpAccount === "milk" ? milkBalance : wraparoundBalance).toFixed(2)}
                       </div>
                     </div>
 
@@ -7707,7 +8419,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       </div>
                       <div style={{ height: 1, background: "var(--color-grey-100)", marginBottom: 16 }} />
                       <div style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-tertiary)" }}>
-                        New balance · <span style={{ fontWeight: 600, color: "var(--color-text-secondary)" }}>£{(standaloneTopUpAccount === "meals" ? mealsBalance : standaloneTopUpAccount === "milk" ? 8.50 : wraparoundBalance).toFixed(2)}</span>
+                        New balance · <span style={{ fontWeight: 600, color: "var(--color-text-secondary)" }}>£{(standaloneTopUpAccount === "meals" ? mealsBalance : standaloneTopUpAccount === "milk" ? milkBalance : wraparoundBalance).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -7731,7 +8443,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     </button>
                   </div>
                   <div style={{ padding: "0 16px 4px" }}>
-                    <button onClick={() => { setShowStandaloneTopUpStripeSheet(false); setShowStandaloneTopUpApplePay(true); setTimeout(() => { if (standaloneTopUpAccount === "wraparound") setToppedUpAmount(prev => prev + topUpAmount); else if (standaloneTopUpAccount === "meals") setMealsTopUpAmount(prev => prev + topUpAmount); setDynamicTransactions(prev => ({ ...prev, [standaloneTopUpAccount]: [{ date: "29 Apr", month: "April 2026", description: "Top-up", amount: topUpAmount, paidBy: "you" }, ...(prev[standaloneTopUpAccount] || [])] })); setShowStandaloneTopUpApplePay(false); setStandaloneTopUpSuccess(true); }, 4500); }} style={{ width: "100%", padding: "13px", borderRadius: 8, border: "none", background: "#000", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, fontFamily: "inherit" }}>
+                    <button onClick={() => { setShowStandaloneTopUpStripeSheet(false); setShowStandaloneTopUpApplePay(true); setTimeout(() => { if (standaloneTopUpAccount === "wraparound") setToppedUpAmount(prev => prev + topUpAmount); else if (standaloneTopUpAccount === "meals") setMealsTopUpAmount(prev => prev + topUpAmount); else if (standaloneTopUpAccount === "milk") setMilkTopUpAmount(prev => prev + topUpAmount); setDynamicTransactions(prev => ({ ...prev, [standaloneTopUpAccount]: [{ date: "29 Apr", month: "April 2026", description: "Top-up", amount: topUpAmount, paidBy: "you" }, ...(prev[standaloneTopUpAccount] || [])] })); setShowStandaloneTopUpApplePay(false); setStandaloneTopUpSuccess(true); }, 4500); }} style={{ width: "100%", padding: "13px", borderRadius: 8, border: "none", background: "#000", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, fontFamily: "inherit" }}>
                       <svg width="16" height="19" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)"/><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)"/></svg>
                       <span>Pay</span>
                     </button>
@@ -7759,7 +8471,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1 1L7 6.5L1 12" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       </div>
                     </div>
-                    <button onClick={() => { if (standaloneTopUpAccount === "wraparound") setToppedUpAmount(prev => prev + topUpAmount); else if (standaloneTopUpAccount === "meals") setMealsTopUpAmount(prev => prev + topUpAmount); setDynamicTransactions(prev => ({ ...prev, [standaloneTopUpAccount]: [{ date: "29 Apr", month: "April 2026", description: "Top-up", amount: topUpAmount, paidBy: "you" }, ...(prev[standaloneTopUpAccount] || [])] })); setShowStandaloneTopUpStripeSheet(false); setStandaloneTopUpSuccess(true); }} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#5469d4", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
+                    <button onClick={() => { if (standaloneTopUpAccount === "wraparound") setToppedUpAmount(prev => prev + topUpAmount); else if (standaloneTopUpAccount === "meals") setMealsTopUpAmount(prev => prev + topUpAmount); else if (standaloneTopUpAccount === "milk") setMilkTopUpAmount(prev => prev + topUpAmount); setDynamicTransactions(prev => ({ ...prev, [standaloneTopUpAccount]: [{ date: "29 Apr", month: "April 2026", description: "Top-up", amount: topUpAmount, paidBy: "you" }, ...(prev[standaloneTopUpAccount] || [])] })); setShowStandaloneTopUpStripeSheet(false); setStandaloneTopUpSuccess(true); }} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#5469d4", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
                       <span>Top up £{topUpAmount}.00</span>
                       <svg width="13" height="15" viewBox="0 0 13 15" fill="none"><path d="M2.5 6.5V4.5C2.5 2.57 4.07 1 6 1C7.93 1 9.5 2.57 9.5 4.5V6.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.3" strokeLinecap="round"/><rect x="1" y="6.5" width="11" height="8" rx="1.5" fill="rgba(255,255,255,0.9)"/><circle cx="6.5" cy="10.5" r="1.2" fill="#5469d4"/></svg>
                     </button>
@@ -7782,7 +8494,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
-                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Burns</div></div>
+                      <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
                     </div>
                     <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
@@ -8079,27 +8791,17 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         <div style={{ display: "flex", gap: 8, paddingBottom: 12, boxShadow: "0 1px 0 rgba(0,0,0,0.06)" }}>
                           {children.map(child => {
                             const isActive = activeChild.id === child.id;
-                            const noticeCount = allNotices.filter(n => n.child === child.name && !consentDecisions[n.id]).length;
                             return (
                               <button key={child.id} onClick={() => setProfileChild(child)} className="btn-pill" style={{
                                 display: "flex", alignItems: "center", gap: 6,
-                                padding: "6px 14px", borderRadius: 20,
-                                border: isActive ? "1.5px solid var(--color-brand-600)" : "1.5px solid #ddd",
-                                background: isActive ? "var(--color-brand-600)" : "#fff",
-                                cursor: "pointer", fontFamily: "inherit",
+                                padding: "6px 14px", borderRadius: "var(--radius-round)",
+                                border: isActive ? "1px solid #0e8a0e" : "1px solid #ddd",
+                                background: isActive ? "#F0FAF3" : "#fff",
+                                cursor: "pointer", fontFamily: "var(--font-family-sans)",
                                 fontSize: "var(--font-size-3)", fontWeight: 600,
-                                color: isActive ? "#fff" : "#666",
+                                color: isActive ? "#005700" : "#595959",
                               }}>
                                 {child.name}
-                                {noticeCount > 0 && (
-                                  <span style={{
-                                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                    minWidth: 16, borderRadius: 99,
-                                    background: isActive ? "#fff" : "var(--color-warning-600)",
-                                    color: isActive ? "var(--color-warning-600)" : "#fff",
-                                    fontSize: 9, fontWeight: 700, lineHeight: 1, padding: "3px 5px",
-                                  }}>{noticeCount}</span>
-                                )}
                               </button>
                             );
                           })}
@@ -8108,100 +8810,6 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     </div>
                     {/* Single scrollable content */}
                     <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", minHeight: 0, background: "#fff" }}>
-
-                      {/* === PENDING CONSENTS === */}
-                      {(childNoticesPending.length > 0 || consentToast === activeChild.name) && (
-                        <div style={{ marginBottom: 28 }}>
-                          {/* Toast — shown after last consent resolved */}
-                          {consentToast === activeChild.name && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderRadius: 12, background: "#F0FAF3", border: "1.5px solid var(--color-brand-600)", opacity: consentToastFading ? 0 : 1, transition: "opacity 0.4s" }}>
-                              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}><circle cx="10" cy="10" r="8.5" stroke="var(--color-brand-600)" strokeWidth="1.5" fill="none" /><path d="M6.5 10L9 12.5L13.5 7.5" stroke="var(--color-brand-600)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                              <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#1a5c2a" }}>All consents responded to</span>
-                            </div>
-                          )}
-
-                          {/* Consent cards */}
-                          {childNoticesPending.length > 0 && (() => {
-                            const visibleConsents = showAllConsents[activeChild.id] ? childNoticesPending : childNoticesPending.slice(0, 3);
-                            const hiddenCount = childNoticesPending.length - 3;
-                            return (
-                              <>
-                                {visibleConsents.map(notice => {
-                                  const fading = fadingConsents[notice.id];
-                                  const pending = consentPendingAction[notice.id];
-                                  const detailOpen = consentDetailOpen[notice.id] || false;
-                                  const isLast = childNoticesPending.length === 1;
-                                  const handleSubmit = () => {
-                                    setFadingConsents(prev => ({ ...prev, [notice.id]: true }));
-                                    setTimeout(() => {
-                                      setConsentDecisions(prev => ({ ...prev, [notice.id]: { decision: pending, note: consentNotes[notice.id] || "", date: "5 Mar 2026" } }));
-                                      setConsentPendingAction(prev => { const n = { ...prev }; delete n[notice.id]; return n; });
-                                      setConsentNotes(prev => { const n = { ...prev }; delete n[notice.id]; return n; });
-                                      setFadingConsents(prev => { const n = { ...prev }; delete n[notice.id]; return n; });
-                                      if (isLast) {
-                                        setConsentToast(activeChild.name);
-                                        setTimeout(() => {
-                                          setConsentToastFading(true);
-                                          setTimeout(() => { setConsentToast(null); setConsentToastFading(false); }, 400);
-                                        }, 3500);
-                                      }
-                                    }, 520);
-                                  };
-                                  return (
-                                    <div key={notice.id} style={{ marginBottom: 12, opacity: fading ? 0 : 1, maxHeight: fading ? 0 : 600, overflow: "hidden", transition: "opacity 0.22s, max-height 0.3s 0.22s" }}>
-                                      <Card padding="none" style={{ borderLeft: "3px solid #e67e22", overflow: "hidden" }}>
-                                        <div style={{ padding: "14px 16px 0" }}>
-                                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                                            <Tag variant="warning">{notice.type}</Tag>
-                                            <span style={{ fontSize: "var(--font-size-1)", color: "#999" }}>Sent {notice.date}</span>
-                                          </div>
-                                          <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333", marginBottom: 8 }}>{notice.title}</div>
-                                          <button onClick={() => setConsentDetailOpen(prev => ({ ...prev, [notice.id]: !prev[notice.id] }))} style={{ border: "none", background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--font-size-3)", fontWeight: 600, color: "#888", padding: 0, display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
-                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: detailOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}><path d="M3 5L6 8L9 5" stroke="#888" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                            {detailOpen ? "Hide details" : "View details"}
-                                          </button>
-                                          {detailOpen && (
-                                            <div style={{ fontSize: "var(--font-size-3)", color: "#555", lineHeight: 1.6, whiteSpace: "pre-line", marginBottom: 14, padding: "12px", background: "#fafafa", borderRadius: 8, border: "1px solid #f0f0f0" }}>{notice.description}</div>
-                                          )}
-                                        </div>
-                                        {!pending ? (
-                                          <div style={{ display: "flex", borderTop: "1px solid #f0f0f0" }}>
-                                            <button onClick={() => setConsentPendingAction(prev => ({ ...prev, [notice.id]: "given" }))} style={{ flex: 1, padding: "12px", border: "none", borderRight: "1px solid #f0f0f0", background: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L7 12L13 4" stroke="var(--color-brand-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                              <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-brand-600)" }}>Give consent</span>
-                                            </button>
-                                            <button onClick={() => setConsentPendingAction(prev => ({ ...prev, [notice.id]: "declined" }))} style={{ flex: 1, padding: "12px", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3L11 11M11 3L3 11" stroke="#cc3333" strokeWidth="2" strokeLinecap="round" /></svg>
-                                              <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#cc3333" }}>Decline</span>
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div style={{ padding: "12px 16px 14px", borderTop: "1px solid #f0f0f0" }}>
-                                            <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#888", marginBottom: 8 }}>Add a note (optional)</div>
-                                            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                                              <div style={{ flex: 1 }}>
-                                                <Input type="text" value={consentNotes[notice.id] || ""} onChange={(e) => setConsentNotes(prev => ({ ...prev, [notice.id]: e.target.value }))} placeholder="Optional note..." style={{ width: "100%" }} />
-                                              </div>
-                                              <Button variant={pending === "given" ? "primary" : "destructive"} size="small" onClick={handleSubmit} style={{ flexShrink: 0 }}>Submit</Button>
-                                            </div>
-                                            <Button variant="ghost" size="small" onClick={() => setConsentPendingAction(prev => { const n = { ...prev }; delete n[notice.id]; return n; })} style={{ padding: "8px 0 0" }}>Back</Button>
-                                          </div>
-                                        )}
-                                      </Card>
-                                    </div>
-                                  );
-                                })}
-                                {childNoticesPending.length > 3 && (
-                                  <button onClick={() => setShowAllConsents(prev => ({ ...prev, [activeChild.id]: !prev[activeChild.id] }))} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "10px 0", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit", fontSize: "var(--font-size-3)", fontWeight: 600, color: "#888" }}>
-                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: showAllConsents[activeChild.id] ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}><path d="M3 5L7 9L11 5" stroke="#888" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                    {showAllConsents[activeChild.id] ? "Show fewer" : `View ${hiddenCount} more consent${hiddenCount > 1 ? "s" : ""}`}
-                                  </button>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
 
                       {/* === DETAILS === */}
                       <div style={{ marginBottom: 28 }}>
@@ -8236,45 +8844,6 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         ))}
                       </div>
 
-                      {/* === RESPONDED CONSENTS === */}
-                      {childNoticesResponded.length > 0 && (() => {
-                        const sortedResponded = [...childNoticesResponded].sort((a, b) => new Date(consentDecisions[b.id].date) - new Date(consentDecisions[a.id].date));
-                        const isExpanded = pastConsentsExpanded[activeChild.id];
-                        return (
-                          <div style={{ marginBottom: 20 }}>
-                            <button
-                              onClick={() => setPastConsentsExpanded(prev => ({ ...prev, [activeChild.id]: !prev[activeChild.id] }))}
-                              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", background: "none", border: "none", cursor: "pointer", marginBottom: isExpanded ? 10 : 0 }}
-                            >
-                              <span style={{ fontSize: "var(--font-size-1)", fontWeight: 700, color: "var(--color-grey-700)", textTransform: "uppercase", letterSpacing: 0.5 }}>Past consents ({childNoticesResponded.length})</span>
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                                <path d="M4 6L8 10L12 6" stroke="#aaa" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            </button>
-                            <div style={{ maxHeight: isExpanded ? 2000 : 0, overflow: "hidden", transition: "max-height 0.3s ease" }}>
-                              {sortedResponded.map(notice => {
-                                const d = consentDecisions[notice.id];
-                                const isGiven = d.decision === "given";
-                                return (
-                                  <Card key={notice.id} padding="none" style={{ marginBottom: 10 }}>
-                                    <div style={{ padding: "14px 16px" }}>
-                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                                        <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "#333", flex: 1, marginRight: 8 }}>{notice.title}</div>
-                                        <span style={{ padding: "3px 10px", borderRadius: 6, background: isGiven ? "#e8f5e9" : "#fce4ec", color: isGiven ? "#4caf50" : "#c62828", fontSize: "var(--font-size-1)", fontWeight: 700, flexShrink: 0 }}>
-                                          {isGiven ? "Given" : "Declined"}
-                                        </span>
-                                      </div>
-                                      <div style={{ fontSize: "var(--font-size-3)", color: "#999" }}>Responded {d.date}</div>
-                                      {d.note && <div style={{ fontSize: "var(--font-size-3)", color: "#888", marginTop: 6, fontStyle: "italic" }}>Note: {d.note}</div>}
-                                    </div>
-                                  </Card>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })()}
-
                       <div style={{ fontSize: "var(--font-size-3)", color: "#bbb", marginTop: 8, lineHeight: 1.4 }}>To update any details, please contact the school office.</div>
                     </div>
                   </div>
@@ -8292,8 +8861,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   </div>
                   <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 24px", minHeight: 0, background: "#fff" }}>
                     {[
-                      { label: "Full name", value: "Kate Collini" },
-                      { label: "Email", value: "kate.collini@email.com" },
+                      { label: "Full name", value: "Kate Brown" },
+                      { label: "Email", value: "kate.brown@email.com" },
                       { label: "Phone", value: "07700 900123" },
                       { label: "Address", value: "14 Oakfield Road\nSurbiton, KT6 4AA" },
                       { label: "Relationship to children", value: "Mother" },
@@ -8509,8 +9078,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   <div style={{ padding: "4px 16px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div>
-                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: 700, color: "#222", marginBottom: 2 }}>Kate Collini</div>
-                      <div style={{ fontSize: "var(--font-size-3)", color: "#999" }}>kate.collini@email.com</div>
+                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: 700, color: "#222", marginBottom: 2 }}>Kate Brown</div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "#999" }}>kate.brown@email.com</div>
                       </div>
                       <button onClick={() => { setShowProfile(false); setProfileScreen(null); setProfileChild(null); }} className="btn-icon" style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid var(--color-grey-200)", background: "var(--color-white)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3L11 11M11 3L3 11" stroke="#333" strokeWidth="1.8" strokeLinecap="round" /></svg>
@@ -8552,10 +9121,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             </div>
                             <div style={{ flex: 1 }}>
                               <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "#333" }}>{isSingleChild ? children[0].name + "'s details" : "Children's details"}</div>
-                              <div style={{ fontSize: "var(--font-size-3)", color: "#999", marginTop: 2 }}>{isSingleChild ? children[0].school : "Details, medical info & consents"}</div>
+                              <div style={{ fontSize: "var(--font-size-3)", color: "#999", marginTop: 2 }}>{isSingleChild ? children[0].school : "Details and medical info"}</div>
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                              {totalNotices > 0 && <div style={{ minWidth: 20, height: 20, borderRadius: 10, background: "var(--color-warning-600)", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{totalNotices}</div>}
                               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                             </div>
                           </div>
@@ -8589,7 +9157,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         )}
 
         {/* ── Absence reporting overlay ───────────────────────────────────── */}
-        {myChildPage && myChildPage !== "absences" && activeTab === "my-child" && (
+        {myChildPage && myChildPage !== "absences" && myChildPage !== "consents" && activeTab === "my-child" && (
           <div style={{ position: "absolute", inset: 0, zIndex: 90, background: "var(--color-bg-secondary)", display: "flex", flexDirection: "column" }}>
 
             {/* ── FORM ── */}
@@ -8832,23 +9400,24 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
 
                     {/* Date + time */}
-                    <p style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-primary)", margin: "0 0 4px" }}>
-                      {absenceMultiDay
-                        ? `${formatAbsenceDate(absenceStartDate)} – ${formatAbsenceDate(absenceEndDate)}`
-                        : formatAbsenceDate(absenceStartDate)
-                      }
-                    </p>
-                    <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: 0 }}>
-                      {formatAbsenceTime(absenceStartTime)} – {formatAbsenceTime(absenceEndTime)}
-                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      <div>
+                        <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>Start</p>
+                        <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", margin: 0 }}>{formatAbsenceDate(absenceStartDate)} at {formatAbsenceTime(absenceStartTime)}</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>End</p>
+                        <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", margin: 0 }}>{absenceMultiDay ? formatAbsenceDate(absenceEndDate) : formatAbsenceDate(absenceStartDate)} at {formatAbsenceTime(absenceEndTime)}</p>
+                      </div>
+                    </div>
 
                     <div style={{ height: 1, background: "var(--color-grey-100)", margin: "14px 0" }} />
 
                     {/* Reason */}
-                    <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", margin: "0 0 4px" }}>Reason</p>
+                    <p style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 2px" }}>Reason</p>
                     {absenceReason === "Other" ? (
                       <>
-                        <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.5, ...(absenceOtherExpanded ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>
+                        <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.5, ...(absenceOtherExpanded ? {} : { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }) }}>
                           {`Other — ${absenceOtherText}`}
                         </p>
                         <button onClick={() => setAbsenceOtherExpanded(v => !v)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "var(--font-size-3)", color: "var(--color-brand-600)", textDecoration: "underline", textUnderlineOffset: 2, fontFamily: "inherit" }}>
@@ -8856,7 +9425,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         </button>
                       </>
                     ) : (
-                      <p style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", margin: 0, lineHeight: 1.5 }}>
+                      <p style={{ fontSize: "var(--font-size-4)", color: "var(--color-text-primary)", margin: 0, lineHeight: 1.5 }}>
                         {absenceReason}
                       </p>
                     )}
