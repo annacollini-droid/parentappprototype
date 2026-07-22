@@ -44,7 +44,9 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
           const isActive = active === id;
           const rawBadge = badges[id];
           const badge = typeof rawBadge === "object" && rawBadge !== null ? rawBadge : { count: rawBadge, variant: "brand" };
-          const badgeBg = badge.variant === "warning" ? "var(--color-warning-600)" : "var(--color-brand-600)";
+          // Dot default = warning (attention), count default = brand (activity)
+          const dotBg = badge.variant === "brand" ? "var(--color-brand-600)" : "var(--color-warning-600)";
+          const countBg = badge.variant === "warning" ? "var(--color-warning-600)" : "var(--color-brand-600)";
           return (
             <button
               key={id}
@@ -99,7 +101,7 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        background: "var(--color-warning-600)",
+                        background: dotBg,
                         border: "1.5px solid var(--color-white)",
                         transform: "translate(50%, -50%)",
                       }}
@@ -113,7 +115,7 @@ export default function BottomNavBar({ activeTab, onTabChange, badges = {} }) {
                         minWidth: 14,
                         height: 14,
                         borderRadius: 7,
-                        background: badgeBg,
+                        background: countBg,
                         color: "#fff",
                         fontSize: 8,
                         fontWeight: 700,

@@ -1,5 +1,5 @@
 import { Card, Tag } from '@tonyarbor/components';
-import { Utensils, Shapes, SunMoon, Bus, ShoppingBag } from 'lucide-react';
+import { Utensils, Shapes, SunMoon, Bus, ShoppingBag, ShoppingBasket } from 'lucide-react';
 
 const sectionTitle = {
   fontSize: 14,
@@ -12,6 +12,8 @@ export default function BookPayLandingV2({
   mealsBalance = 3.20,
   wraparoundBalance = 24.00,
   lowFundsThreshold = 5.0,
+  basketsWithItems = [],
+  setBasketViewSchool,
   bookingsNeedsAttentionCount = 0,
   upcomingCount = 3,
   pastCount = 4,
@@ -70,9 +72,32 @@ export default function BookPayLandingV2({
   return (
     <div style={{ backgroundColor: "var(--color-grey-050)", minHeight: "100%", padding: "20px 16px 32px", display: "flex", flexDirection: "column", gap: 24, overflowY: "auto" }}>
 
+      {/* Basket + Bookings & orders — action cluster (tight 12px gap between them) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {basketsWithItems.length > 0 && (() => {
+        const totalCount = basketsWithItems.reduce((sum, b) => sum + b.count, 0);
+        const openBasket = () => {
+          if (basketsWithItems.length === 1) setBasketViewSchool(basketsWithItems[0].school);
+          else setBasketViewSchool(null);
+          setSubPage("basket");
+        };
+        return (
+          <Card padding="none">
+            <button
+              onClick={openBasket}
+              style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+            >
+              <ShoppingBasket size={20} color="var(--color-grey-900)" strokeWidth={1.5} />
+              <div style={{ flex: 1, fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Basket</div>
+              <span style={{ flexShrink: 0, minWidth: 20, height: 20, borderRadius: 99, background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}>{totalCount}</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          </Card>
+        );
+      })()}
+
       {/* Bookings & orders — destination card */}
-      <div>
-        <Card padding="none">
+      <Card padding="none">
           <button
             onClick={() => { setBookingsFilter(bookingsNeedsAttentionCount > 0 ? "needs-attention" : (upcomingState === "has-upcoming" ? "upcoming" : "past")); setSubPage("my-bookings"); }}
             style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", width: "100%", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}

@@ -12,7 +12,7 @@ const EXPLORE_BOOK_PAY = true;
 import { Avatar, Button, Card, Checkbox, Toggle, Input, TextArea, Tag, Banner, DatePicker, Combobox, Toast } from '@tonyarbor/components';
 import { CircleUserRound, Lock, Bell, Info, User, School, Shapes, Bus, SunMoon, Sun, Utensils, ShoppingBag, MapPin, Users, ChevronLeft, ChevronRight, ChevronDown, X, Calendar, CalendarX, Link2, Clock, ClipboardList, MessageCircle, Wallet, ArrowRight, AlertTriangle, Check, Tag as TagIcon, Newspaper, Mail, Smartphone, Trophy, PartyPopper, Book } from 'lucide-react';
 
-const children = [
+const FAMILY_CHILDREN = [
   // `year` is an internal filtering key only — never surfaced in the parent UI (parents know their child's year).
   { id: 1, name: "Molly", initials: "M", school: "Oakwood Primary",    year: "Year 4", avatarColour: { bg: "#eeebf4", border: "#e2dcef", text: "#472b61" } }, // purple
   { id: 2, name: "Lucas", initials: "L", school: "Oakwood Primary",    year: "Year 6", avatarColour: { bg: "#e4f4f3", border: "#cbefed", text: "#0a685b" } }, // teal
@@ -88,6 +88,17 @@ const tripExtras = {
     bullets: ["1 night camping, supervised by qualified staff", "Expedition kit available to borrow free of charge", "Pupils carry and prepare their own food"],
     consentStatements: ["I give permission for my child to take part in this expedition.", "I consent to emergency medical treatment if it is needed and I cannot be reached.", "I confirm the school holds up-to-date medical information for my child."],
   },
+};
+
+// Format a `clubLead` value that may be a single name (string) or a list of names
+// (array). Joins with commas and an ampersand before the last name.
+const formatLeads = (leads) => {
+  if (!leads) return "";
+  if (!Array.isArray(leads)) return leads;
+  if (leads.length === 0) return "";
+  if (leads.length === 1) return leads[0];
+  if (leads.length === 2) return `${leads[0]} & ${leads[1]}`;
+  return `${leads.slice(0, -1).join(", ")} & ${leads[leads.length - 1]}`;
 };
 
 // Bespoke Parents' evening glyph — a calendar with two appointment dots. Shared by the Home
@@ -425,7 +436,7 @@ function ChildStack({ kids }) {
   );
 }
 
-function ChildSwitcher({ selectedChild, onSwitch, allChildren, onSelectAll, showAllOption }) {
+function ChildSwitcher({ children, selectedChild, onSwitch, allChildren, onSelectAll, showAllOption }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -539,7 +550,7 @@ function ChildSwitcher({ selectedChild, onSwitch, allChildren, onSelectAll, show
   );
 }
 
-function TopNav({ selectedChild, onSwitchChild, allChildren, onSelectAll, showAllOption, hideChildSwitcher, onProfileOpen, surface }) {
+function TopNav({ children, selectedChild, onSwitchChild, allChildren, onSelectAll, showAllOption, hideChildSwitcher, onProfileOpen, onLogoClick, surface }) {
   const brand = surface === "brand";
   return (
     <div
@@ -553,13 +564,20 @@ function TopNav({ selectedChild, onSwitchChild, allChildren, onSelectAll, showAl
         flexShrink: 0,
       }}
     >
-      {/* Arbor logo */}
-      <img src={arborLogo} alt="Arbor" width="32" height="32" style={{ flexShrink: 0, objectFit: "contain" }} />
+      {/* Arbor logo — tap to go home */}
+      <button
+        onClick={onLogoClick}
+        aria-label="Go to home"
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", flexShrink: 0 }}
+      >
+        <img src={arborLogo} alt="Arbor" width="32" height="32" style={{ flexShrink: 0, objectFit: "contain" }} />
+      </button>
 
       {/* Right side: child switcher + profile */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ visibility: hideChildSwitcher ? "hidden" : "visible", pointerEvents: hideChildSwitcher ? "none" : "auto" }}>
           <ChildSwitcher
+            children={children}
             selectedChild={selectedChild}
             onSwitch={onSwitchChild}
             allChildren={allChildren}
@@ -761,7 +779,7 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
                 {clubLead && (
                   <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
                     <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                    {clubLead}
+                    {formatLeads(clubLead)}
                   </span>
                 )}
               </div>
@@ -941,7 +959,7 @@ function BookingConfirmedScreen({ isMobile, clubName, childName, days, time, loc
               })()}
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 {location && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><MapPin size={14} color="var(--color-text-secondary)" strokeWidth={1.5} /><span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{location}</span></div>}
-                {clubLead && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Users size={14} color="var(--color-text-secondary)" strokeWidth={1.5} /><span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{clubLead}</span></div>}
+                {clubLead && <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Users size={14} color="var(--color-text-secondary)" strokeWidth={1.5} /><span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{formatLeads(clubLead)}</span></div>}
               </div>
             </>
           )}
@@ -1239,6 +1257,8 @@ function MobileTimePicker({ value, label, onOpen }) {
 
 export default function ParentApp() {
   const [hasStarted, setHasStarted] = useState(false);
+  const [householdMode, setHouseholdMode] = useState("multi"); // "multi" (Collini family, 3 kids / 2 schools) | "single" (Molly only)
+  const children = householdMode === "single" ? [FAMILY_CHILDREN[0]] : FAMILY_CHILDREN;
   const [selectedChild, setSelectedChild] = useState(children[0]);
   const [allChildren, setAllChildren] = useState(true); // launch default — Home shows the whole household; only ever true on Home
   const [activeTab, setActiveTab] = useState("home");
@@ -1471,7 +1491,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     dateRange: "Tue 12 – Thu 14 May 2026",
     time: "08:00–17:00",
     location: "Marchants Hill, Surrey",
-    clubLead: "Mrs Hughes",
+    clubLead: ["Mrs Hughes", "Mr Patel", "Miss Bennett"],
     description: "A 3-day residential adventure trip for Year 4 pupils at PGL Marchants Hill. Activities include zip wire, climbing, and team challenges. All meals and accommodation included.",
     totalCost: 185,
     amountPaid: pglAmountPaid,
@@ -1522,10 +1542,155 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
   const [absenceTimePickerActive, setAbsenceTimePickerActive] = useState(null); // null | "start" | "end"
   const [absenceOtherExpanded, setAbsenceOtherExpanded] = useState(false);
 
-  const [basketsBySchool, setBasketsBySchool] = useState({});
-  const basketCount = basketsBySchool[selectedChild.school] || 0;
-  const [basketToast, setBasketToast] = useState(null); // null | { title, child }
+  const [basketsBySchool, setBasketsBySchool] = useState({
+    "Oakwood Primary": [
+      { id: "seed-club-1", type: "club", title: "Drama", childName: "Molly", schoolName: "Oakwood Primary", amount: 176, subLine: "Summer term 2026", addedAt: Date.now() - 200000, itemId: 21, periodId: "21-termly", periodLabel: "Summer term 2026", sessionCount: 11 },
+      { id: "seed-club-3", type: "club", title: "Archery", childName: "Molly", schoolName: "Oakwood Primary", amount: 25, subLine: "Summer term 2026", addedAt: Date.now() - 250000, itemId: 29, periodId: "29-termly", periodLabel: "Summer term 2026", partialOf: 50, editableAmount: { min: 10, max: 50 }, balanceDeadline: "17 Jul 2026", sessionCount: 11 },
+      { id: "seed-club-4", type: "club", title: "Forest school", childName: "Molly", schoolName: "Oakwood Primary", amount: 15, subLine: "Summer term 2026", addedAt: Date.now() - 275000, itemId: 28, periodId: "28-termly", periodLabel: "Summer term 2026", editableAmount: { min: 0, max: 60 }, sessionCount: 11 },
+      { id: "seed-topup-1", type: "meal-topup", account: "meals", title: "Meals top-up", childName: "Molly", schoolName: "Oakwood Primary", amount: 10, subLine: "Meals", addedAt: Date.now() - 350000, itemId: "meal-topup-mol", editableAmount: { min: 0, max: null } },
+      { id: "seed-trip-1", type: "trip", title: "Whipsnade Zoo", childName: "Lucas", schoolName: "Oakwood Primary", amount: 25, subLine: "Fri 24 Oct 2026", addedAt: Date.now() - 100000, itemId: "trip-whipsnade" },
+    ],
+    "Riverside Secondary": [
+      { id: "seed-club-2", type: "club", title: "Debate club", childName: "Ethan", schoolName: "Riverside Secondary", amount: 45, subLine: "Autumn term 2026", addedAt: Date.now() - 300000, itemId: 30, periodLabel: "Autumn term 2026", sessionCount: 12 },
+      { id: "seed-trip-2", type: "trip", title: "Natural History Museum", childName: "Ethan", schoolName: "Riverside Secondary", amount: 18, subLine: "Fri 4 Apr 2026", addedAt: Date.now() - 150000, itemId: "trip-nhm" },
+    ],
+  });
+  const [basketViewSchool, setBasketViewSchool] = useState(null);
+  const basketItems = basketsBySchool[selectedChild.school] || [];
+  const basketCount = basketItems.length;
+  const guardianSchools = [...new Set(children.map(c => c.school))];
+  const basketsWithItems = guardianSchools
+    .map(school => ({ school, count: (basketsBySchool[school] || []).length }))
+    .filter(b => b.count > 0);
+  const totalBasketCount = basketsWithItems.reduce((sum, b) => sum + b.count, 0);
+  const isMultiSchoolHousehold = guardianSchools.length > 1;
+  const basketPickerActive = subPage === "basket" && !basketViewSchool && basketsWithItems.length >= 2;
+  // Household-mode toggle: keep dependent state coherent when children/schools change.
+  useEffect(() => {
+    if (!children.find(c => c.id === selectedChild?.id)) setSelectedChild(children[0]);
+    if (basketViewSchool && !guardianSchools.includes(basketViewSchool)) setBasketViewSchool(null);
+  }, [householdMode]);
+  const [basketToast, setBasketToast] = useState(null); // null | { title, child, amount, partialOf }
   const [basketToastFading, setBasketToastFading] = useState(false);
+  const [basketRemoveToast, setBasketRemoveToast] = useState(null); // null | { mode: "single", schoolName, item, index } | { mode: "bulk", schoolName, snapshot }
+  const [basketRemoveToastFading, setBasketRemoveToastFading] = useState(false);
+  const [basketCheckout, setBasketCheckout] = useState(null); // null | { schoolName, items, total, stage: "stripe" | "applepay" | "confirmation" }
+  const addBasketItem = (partial) => {
+    const item = { id: `bi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, childName: selectedChild.name, schoolName: selectedChild.school, addedAt: Date.now(), ...partial };
+    setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: [...(prev[selectedChild.school] || []), item] }));
+    setBasketToastFading(false);
+    setBasketToast({ title: partial.title, child: selectedChild.name, school: selectedChild.school, amount: partial.amount, partialOf: partial.partialOf });
+  };
+  // Swap sheet: memberships/options for the same club are mutually exclusive, so adding one when another is already
+  // in the basket triggers a "Replace X with Y?" bottom sheet instead of silently swapping or blocking.
+  const [swapSheet, setSwapSheet] = useState(null); // null | { existing, incoming }
+  const commitClubBasket = (partial) => {
+    const existing = (basketsBySchool[selectedChild.school] || []).find(i => i.type === "club" && i.itemId === partial.itemId);
+    if (existing && existing.periodId && partial.periodId && existing.periodId !== partial.periodId) {
+      setSwapSheet({ existing, incoming: partial });
+      return;
+    }
+    addBasketItem(partial);
+  };
+  // Swipe-to-remove on basket rows: pointer events, ~40px threshold, one open row at a time.
+  const [swipedRowId, setSwipedRowId] = useState(null);
+  const swipeStart = useRef(null);
+  const removeBasketItemById = (itemId, schoolName) => {
+    const list = basketsBySchool[schoolName] || [];
+    const index = list.findIndex(i => i.id === itemId);
+    const item = list[index];
+    if (!item) return;
+    setBasketsBySchool(prev => ({ ...prev, [schoolName]: (prev[schoolName] || []).filter(i => i.id !== itemId) }));
+    setSwipedRowId(null);
+    setBasketToast(null);
+    setBasketToastFading(false);
+    setBasketRemoveToastFading(false);
+    setBasketRemoveToast({ mode: "single", schoolName, item, index });
+  };
+  const applyBasketPayment = (checkout) => {
+    const { schoolName, items } = checkout;
+    setBasketsBySchool(prev => ({ ...prev, [schoolName]: [] }));
+    setBasketToast(null);
+    setBasketRemoveToast(null);
+    setSwipedRowId(null);
+    items.filter(i => i.type === "meal-topup").forEach(i => {
+      const amt = i.amount;
+      if (i.account === "meals") setMealsTopUpAmount(prev => prev + amt);
+      else if (i.account === "wraparound") setToppedUpAmount(prev => prev + amt);
+      else if (i.account === "milk") setMilkTopUpAmount(prev => prev + amt);
+      const acct = i.account;
+      if (acct) {
+        setDynamicTransactions(prev => ({
+          ...prev,
+          [acct]: [{ date: "29 Apr", month: "April 2026", description: "Top-up", amount: amt, paidBy: "you" }, ...(prev[acct] || [])],
+        }));
+      }
+    });
+  };
+  const clearBasket = (schoolName) => {
+    const snapshot = basketsBySchool[schoolName] || [];
+    if (snapshot.length === 0) return;
+    setBasketsBySchool(prev => ({ ...prev, [schoolName]: [] }));
+    setSwipedRowId(null);
+    setBasketToast(null);
+    setBasketToastFading(false);
+    setBasketRemoveToastFading(false);
+    setBasketRemoveToast({ mode: "bulk", schoolName, snapshot });
+  };
+  const undoRemoveBasketItem = () => {
+    if (!basketRemoveToast) return;
+    if (basketRemoveToast.mode === "bulk") {
+      const { schoolName, snapshot } = basketRemoveToast;
+      setBasketsBySchool(prev => ({ ...prev, [schoolName]: snapshot }));
+    } else {
+      const { schoolName, item, index } = basketRemoveToast;
+      setBasketsBySchool(prev => {
+        const list = [...(prev[schoolName] || [])];
+        list.splice(Math.min(index, list.length), 0, item);
+        return { ...prev, [schoolName]: list };
+      });
+    }
+    setBasketRemoveToastFading(true);
+    setTimeout(() => { setBasketRemoveToast(null); setBasketRemoveToastFading(false); }, 400);
+  };
+  // Edit-amount sheet — only for items that carry an `editableAmount` range (top-ups, voluntary/partial contributions).
+  const [editAmountSheet, setEditAmountSheet] = useState(null); // null | { itemId, schoolName, title, subLine, min, max }
+  const [editAmountValue, setEditAmountValue] = useState(0);
+  const [editAmountError, setEditAmountError] = useState(null);
+  const saveEditAmount = () => {
+    if (!editAmountSheet) return;
+    const { itemId, schoolName, type, min, max } = editAmountSheet;
+    // For top-ups the £2 minimum is a checkout-total constraint, not a per-item one.
+    if (type === "meal-topup") {
+      const otherTotal = (basketsBySchool[schoolName] || []).filter(i => i.id !== itemId).reduce((s, i) => s + i.amount, 0);
+      if (editAmountValue + otherTotal < 2) return;
+    } else if (min === 0) {
+      // Voluntary — basket entries must stay > £0. Editing to £0 would need a "confirm as free booking" flow.
+      if (editAmountValue < 1) return;
+      if (max != null && editAmountValue > max) return;
+    } else {
+      if (editAmountValue < min) return;
+      if (max != null && editAmountValue > max) return;
+    }
+    setBasketsBySchool(prev => ({
+      ...prev,
+      [schoolName]: (prev[schoolName] || []).map(i => i.id === itemId ? { ...i, amount: editAmountValue } : i),
+    }));
+    setEditAmountSheet(null);
+    setEditAmountError(null);
+  };
+  const executeSwap = () => {
+    if (!swapSheet) return;
+    const { existing, incoming } = swapSheet;
+    const newItem = { id: `bi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, childName: selectedChild.name, schoolName: selectedChild.school, addedAt: Date.now(), ...incoming };
+    setBasketsBySchool(prev => {
+      const list = (prev[existing.schoolName] || []).filter(i => i.id !== existing.id);
+      return { ...prev, [existing.schoolName]: [...list, newItem] };
+    });
+    setBasketToastFading(false);
+    setBasketToast({ title: incoming.title, child: selectedChild.name, school: selectedChild.school, amount: incoming.amount, partialOf: incoming.partialOf });
+    setSwapSheet(null);
+  };
   // Race-at-commit (full states Part B): clubs whose space was lost at the commit tap, plus the "just filled up" sheet.
   const [raceFilledIds, setRaceFilledIds] = useState(() => new Set());      // club ids that raced fully full (whole club gone)
   const [racedPeriodIds, setRacedPeriodIds] = useState(() => new Set());    // period ids that raced full (single option gone, club may still have others)
@@ -1542,6 +1707,14 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     }, 4000);
     return () => clearTimeout(t);
   }, [basketToast]);
+  useEffect(() => {
+    if (!basketRemoveToast) return;
+    const t = setTimeout(() => {
+      setBasketRemoveToastFading(true);
+      setTimeout(() => { setBasketRemoveToast(null); setBasketRemoveToastFading(false); }, 400);
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [basketRemoveToast]);
 
   // Date conversion helpers for DatePicker (works in local time, avoids UTC offset issues)
   const dateFromStr = (s) => { if (!s) return undefined; const [y, m, d] = s.split('-'); return new Date(+y, +m - 1, +d); };
@@ -1555,7 +1728,6 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
     { value: "Bereavement or family loss", label: "Bereavement or family loss" },
     { value: "Religious observance", label: "Religious observance" },
     { value: "Family emergency", label: "Family emergency" },
-    { value: "Holiday during term time", label: "Holiday during term time" },
     { value: "Quarantine / infectious disease", label: "Quarantine / infectious disease" },
     { value: "Other", label: "Other" },
   ];
@@ -1757,7 +1929,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "ms-mon-jul6",  label: "Mon 6 Jul",  active: true, dayKey: "mon", weekLabel: "Mon 6 – Fri 10 Jul" },
         { id: "ms-wed-jul8",  label: "Wed 8 Jul",  active: true, dayKey: "wed" },
         { id: "ms-fri-jul10", label: "Fri 10 Jul", active: true, dayKey: "fri" },
-        { id: "ms-mon-jul13", label: "Mon 13 Jul", active: true, dayKey: "mon", weekLabel: "Mon 13 – Fri 17 Jul" },
+        { id: "ms-mon-jul13", label: "Mon 13 Jul", active: true, dayKey: "mon", weekLabel: "Mon 13 – Fri 17 Jul", booked: true },
         { id: "ms-wed-jul15", label: "Wed 15 Jul", active: true, dayKey: "wed" },
         { id: "ms-fri-jul17", label: "Fri 17 Jul", active: true, dayKey: "fri" },
         { id: "ms-mon-jul20", label: "Mon 20 Jul", active: true, dayKey: "mon", weekLabel: "Mon 20 – Fri 24 Jul" },
@@ -1766,7 +1938,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         { id: "ms-mon-jul27", label: "Mon 27 Jul", active: true, dayKey: "mon", weekLabel: "Mon 27 – Fri 31 Jul" },
         { id: "ms-wed-jul29", label: "Wed 29 Jul", active: true, dayKey: "wed" },
         { id: "ms-fri-jul31", label: "Fri 31 Jul", active: true, dayKey: "fri" },
-        { id: "ms-mon-aug3",  label: "Mon 3 Aug",  active: true, dayKey: "mon", weekLabel: "Mon 3 – Fri 7 Aug" },
+        { id: "ms-mon-aug3",  label: "Mon 3 Aug",  active: true, dayKey: "mon", weekLabel: "Mon 3 – Fri 7 Aug", booked: true },
         { id: "ms-wed-aug5",  label: "Wed 5 Aug",  active: true, dayKey: "wed" },
         { id: "ms-fri-aug7",  label: "Fri 7 Aug",  active: true, dayKey: "fri" },
         { id: "ms-mon-aug10", label: "Mon 10 Aug", active: true, dayKey: "mon", weekLabel: "Mon 10 – Fri 14 Aug" },
@@ -2148,7 +2320,12 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             : (clubPeriods.length > 1 ? `From ${fmtPrice(extras.blockPrice)}` : fmtPrice(extras.blockPrice)) + ` for ${extras.blockSessions} sessions`;
           const isMixedC  = cDailyPds.length > 0 && cTermlyPds.length > 0;
           const isSingleC = clubPeriods.length === 1;
-          const effectivePeriod = selectedBkPeriod ?? (isSingleC ? clubPeriods[0] : null);
+          // Per-club "in basket" — one item per club (mutually-exclusive options); grab whichever period is currently basketed.
+          const clubBasketItems = basketsBySchool[selectedChild.school] || [];
+          const inBasketItem = clubBasketItems.find(i => i.type === "club" && i.itemId === selectedClub.id);
+          const inBasketPeriod = inBasketItem ? clubPeriods.find(p => p.id === inBasketItem.periodId) : null;
+          const effectivePeriod = selectedBkPeriod ?? inBasketPeriod ?? (isSingleC ? clubPeriods[0] : null);
+          const isSelectedInBasket = inBasketPeriod && effectivePeriod?.id === inBasketPeriod.id;
           // Per-option fullness: a period is full if the school marked it full, or it raced full this session.
           const isPeriodFull = (p) => p.full === true || racedPeriodIds.has(p.id);
           const availablePeriods = clubPeriods.filter(p => !isPeriodFull(p));
@@ -2282,7 +2459,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                                 <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid var(--color-grey-100)" }}>
                                   <span style={{ fontSize: "var(--font-size-3)", color: d.active !== false ? "var(--color-text-primary)" : "var(--color-text-disabled)", textDecoration: d.active !== false ? "none" : "line-through" }}>{d.label}</span>
                                   {d.active !== false
-                                    ? <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{d.time || `${clubPeriods[0].start}–${clubPeriods[0].end}`}</span>
+                                    ? (d.booked
+                                        ? <Tag variant="neutral">Booked</Tag>
+                                        : <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>{d.time || `${clubPeriods[0].start}–${clubPeriods[0].end}`}</span>)
                                     : d.note && <Tag variant="neutral">{d.note}</Tag>}
                                 </div>
                               ))}
@@ -2414,6 +2593,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                             );
                           }
                           const isSelected = effectivePeriod?.id === period.id;
+                          const isInBasket = inBasketPeriod?.id === period.id;
                           return (
                             <button key={period.id}
                               onClick={(e) => { setSelectedBkPeriod(period); setBookingOption(isTermly ? "term" : "individual"); scrollAfterRenderC(e.currentTarget); }}
@@ -2425,8 +2605,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                                 <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)" }}>{schoolName || getCardTitle(period)}</div>
                                 {schoolName && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getCardTitle(period)}</div>}
                               </div>
-                              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0 }}>
-                                {isSuggested && <span style={{ fontSize: "var(--font-size-1)", fontWeight: 500, color: "var(--color-text-tertiary)", lineHeight: 1.2 }}>Suggested</span>}
+                              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
+                                {isInBasket && <span style={{ color: "var(--color-brand-600)", fontSize: "var(--font-size-1)", fontWeight: 600, lineHeight: 1.4 }}>In basket</span>}
+                                {isSuggested && !isInBasket && <span style={{ fontSize: "var(--font-size-1)", fontWeight: 500, color: "var(--color-text-tertiary)", lineHeight: 1.2 }}>Suggested</span>}
                                 <span style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)" }}>{price}</span>
                               </span>
                             </button>
@@ -2471,6 +2652,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
                 {selectedClub.full ? (
                   <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", textAlign: "center", lineHeight: 1.4, padding: "10px 0" }}>This club is full. Contact the school office if you have a question.</div>
+                ) : isSelectedInBasket ? (
+                  <button onClick={() => { setBasketViewSchool(inBasketItem.schoolName); setDetailPage(null); setSelectedClub(null); setActiveTab("book-pay"); setSubPage("basket"); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>View basket · £{inBasketItem.amount.toFixed(2)}</button>
                 ) : (<>
                 {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && (
                   <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this activity.</div>
@@ -2478,13 +2661,13 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <button onClick={onCta} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{ctaLabel}</button>
                   {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && isVariable && (selectedClub.minimumContribution ?? 0) > 0 && (
-                    <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: termlyTotal }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                    <button onClick={() => { commitClubBasket({ type: "club", title: selectedClub.title, amount: termlyTotal, subLine: effectivePeriod.label || (effectivePeriod.type === "yearly" ? "Full year" : "Full term"), itemId: selectedClub.id, periodId: effectivePeriod.id, periodLabel: effectivePeriod.label || (effectivePeriod.type === "yearly" ? "Full year" : "Full term"), editableAmount: { min: selectedClub.minimumContribution ?? 0, max: termlyTotal }, sessionCount: effectivePeriod.sessionsRemaining ?? undefined }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                   )}
                   {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && isVariable && (
                     <button onClick={() => { const min = selectedClub.minimumContribution ?? 0; setPartialAmount(min > 0 ? min : termlyTotal); setPartialAmountFlash(false); setShowPartialSheet(true); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay a different amount</button>
                   )}
                   {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && !extras.isFree && !isVariable && (
-                    <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: termlyTotal }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                    <button onClick={() => { commitClubBasket({ type: "club", title: selectedClub.title, amount: termlyTotal, subLine: effectivePeriod.label || (effectivePeriod.type === "yearly" ? "Full year" : "Full term"), itemId: selectedClub.id, periodId: effectivePeriod.id, periodLabel: effectivePeriod.label || (effectivePeriod.type === "yearly" ? "Full year" : "Full term"), sessionCount: effectivePeriod.sessionsRemaining ?? undefined }); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                   )}
                   {(effectivePeriod.type === "termly" || effectivePeriod.type === "yearly") && selectedClub.paymentModel === "provisional" && (
                     <button onClick={() => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Reserve &amp; pay later</button>
@@ -2778,7 +2961,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); if (extras.isFree) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); } else { setTakeoverPaymentAmount(total); setShowStripeSheet(true); } }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{extras.isFree ? "Confirm booking" : (count > 0 ? `Pay now · £${total.toFixed(2)}` : "Pay now")}</button>
                 {!extras.isFree && !(selectedClub.paymentModel === "variable" && (selectedClub.minimumContribution ?? 0) === 0) && (
-                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: total }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); const firstDate = activeDates.find(d => d.id in selectedDates)?.label; commitClubBasket({ type: "club", title: selectedClub.title, amount: total, subLine: `${count} session${count !== 1 ? "s" : ""}`, itemId: selectedClub.id, periodId: selectedBkPeriod?.id, periodLabel: selectedBkPeriod?.label, firstDate }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                 )}
                 {selectedClub.paymentModel === "variable" && (
                   <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setPartialAmount(total); setPartialAmountFlash(false); setShowPartialSheet(true); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay a different amount</button>
@@ -3101,7 +3284,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                 }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{count > 0 ? `Pay now · £${total.toFixed(2)}` : "Pay now"}</button>
                 {/* Add to basket — hidden for voluntary (min=0) per existing pattern; basket is offered inside the contribution sheet after picking an amount. */}
                 {!(selectedClub.paymentModel === "variable" && (selectedClub.minimumContribution ?? 0) === 0) && (
-                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: total }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                  <button onClick={() => { if (count === 0) { setClubDatesError(true); return; } setClubDatesError(false); const firstInstance = instances.find(w => w.id in selectedWeeks); const firstDate = firstInstance ? (firstInstance.start || (firstInstance.label || "").split(" – ")[0].replace(/\s\d{4}$/, "")) : undefined; commitClubBasket({ type: "club", title: selectedClub.title, amount: total, subLine: `${count} ${count === 1 ? unitWord : unitPlural}`, itemId: selectedClub.id, periodId: selectedBkPeriod?.id, periodLabel: selectedBkPeriod?.label, firstDate }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                 )}
                 {/* Pay a different amount — variable clubs only. Opens contribution sheet with scaled overrides. */}
                 {selectedClub.paymentModel === "variable" && (
@@ -3338,7 +3521,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                   {extras.isFree ? "Confirm booking" : `Pay now · £${total.toFixed(2)}`}
                 </button>
                 {!(selectedClub.paymentModel === "variable" && (selectedClub.minimumContribution ?? 0) === 0) && (
-                  <button onClick={() => { setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: total }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                  <button onClick={() => { const firstDate = isTerm ? undefined : extras.sessionDates.find(d => d.id in selectedDates)?.label; commitClubBasket({ type: "club", title: selectedClub.title, amount: total, subLine: isTerm ? (selectedBkPeriod?.label || "Full term") : `${count} session${count !== 1 ? "s" : ""}`, itemId: selectedClub.id, periodId: selectedBkPeriod?.id, periodLabel: selectedBkPeriod?.label, sessionCount: isTerm ? (selectedBkPeriod?.sessionsRemaining ?? undefined) : undefined, firstDate }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                 )}
                 {selectedClub.paymentModel === "provisional" && (
                   <button onClick={() => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); }} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Reserve &amp; pay later</button>
@@ -3585,9 +3768,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       setShowPartialSheet(false);
                       setPartialMinOverride(null);
                       setPartialMaxOverride(null);
-                      setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 }));
-                      setBasketToastFading(false);
-                      setBasketToast({ title: selectedClub.title, child: selectedChild.name, amount: partialAmount, partialOf: minContrib > 0 && partialAmount < maxAmount ? maxAmount : undefined });
+                      commitClubBasket({ type: "club", title: selectedClub.title, amount: partialAmount, subLine: selectedBkPeriod?.label || "Full term", itemId: selectedClub.id, periodId: selectedBkPeriod?.id, periodLabel: selectedBkPeriod?.label, partialOf: minContrib > 0 && partialAmount < maxAmount ? maxAmount : undefined, editableAmount: { min: minContrib, max: maxAmount === Infinity ? null : maxAmount }, sessionCount: selectedBkPeriod?.sessionsRemaining ?? undefined, balanceDeadline: balanceDeadline || undefined });
                       if (flowStep === "choose-dates" || flowStep === "choose-instances") setFlowStep(null);
                     }}
                     className="btn-action"
@@ -3620,10 +3801,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           const confirmFree = () => { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); };
           const openContribution = () => { setPartialAmount(isInstalment ? t.deposit : (t.suggestedAmount ?? 0)); setPartialAmountFlash(false); setShowPartialSheet(true); };
           const addToBasket = (amount = basketAmount) => {
-            setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 }));
-            setBasketToastFading(false);
-            setBasketToast({ title: t.title, child: selectedChild.name, amount });
+            addBasketItem({ type: "trip", title: t.title, amount, subLine: t.dateRange || t.date || "Trip", itemId: t.id });
           };
+          const tripInBasket = (basketsBySchool[selectedChild.school] || []).find(i => i.type === "trip" && i.itemId === t.id);
           return (
           <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--color-grey-050)", position: "relative" }}>
             <div style={{ height: isMobile ? 20 : 50, background: "var(--color-grey-050)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
@@ -3683,7 +3863,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                       )}
                       {t.clubLead && (
                         <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
-                          <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />{t.clubLead}
+                          <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />{formatLeads(t.clubLead)}
                         </span>
                       )}
                       {!looming && t.deadlineLabel && (
@@ -3751,6 +3931,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             <div style={{ padding: "12px 16px 20px", flexShrink: 0, background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)" }}>
               {t.full ? (
                 <div style={{ textAlign: "center", fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", lineHeight: 1.4, padding: "10px 0" }}>This trip is full. Contact the school office if you have a question.</div>
+              ) : tripInBasket ? (
+                <button onClick={() => { setBasketViewSchool(tripInBasket.schoolName); setDetailPage(null); setSelectedClub(null); setActiveTab("book-pay"); setSubPage("basket"); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>View basket · £{tripInBasket.amount.toFixed(2)}</button>
               ) : (
                 <>
                   <div style={{ fontSize: "var(--font-size-1)", color: "var(--color-text-tertiary)", textAlign: "center", marginBottom: 10, lineHeight: 1.4 }}>By booking, you consent to your child attending this trip.</div>
@@ -3897,7 +4079,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     <div style={{ padding: "12px 16px 28px", background: "var(--color-white)", display: "flex", flexDirection: "column", gap: 10 }}>
                       <button onClick={() => { if (invalid) { setPartialAmountFlash(true); return; } setShowPartialSheet(false); setTakeoverPaymentAmount(partialAmount); if (partialAmount === 0) { setConfirmedDatesExpanded(false); setFlowStep("confirmed"); } else { setPaymentMethod("card"); setCardFilled(false); setShowStripeSheet(true); } }} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{partialAmount === 0 ? "Confirm with £0" : `Pay now · £${partialAmount.toFixed(2)}`}</button>
                       {partialAmount > 0 && (
-                        <button onClick={() => { if (invalid) { setPartialAmountFlash(true); return; } setShowPartialSheet(false); setBasketsBySchool(prev => ({ ...prev, [selectedChild.school]: (prev[selectedChild.school] || 0) + 1 })); setBasketToastFading(false); setBasketToast({ title: t.title, child: selectedChild.name, amount: partialAmount, partialOf: partialAmount < t.totalCost ? t.totalCost : undefined }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
+                        <button onClick={() => { if (invalid) { setPartialAmountFlash(true); return; } setShowPartialSheet(false); addBasketItem({ type: "trip", title: t.title, amount: partialAmount, subLine: t.dateRange || t.date || "Trip", itemId: t.id, partialOf: partialAmount < t.totalCost ? t.totalCost : undefined, editableAmount: { min: minAmount, max: maxAmount === Infinity ? null : maxAmount } }); setFlowStep(null); }} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "1px solid var(--color-border-default)", background: "var(--color-white)", color: "var(--color-text-primary)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Add to basket</button>
                       )}
                     </div>
                   </div>
@@ -5406,7 +5588,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         })()}
         {/* Regular app content */}
         {!detailPage && (<>
-        {!(subPage === "my-bookings" && selectedUpcomingItem?.paymentModel) && (<>
+        {!(subPage === "my-bookings" && selectedUpcomingItem?.paymentModel) && !(subPage === "basket" && !basketPickerActive) && (<>
         {/* Status bar area */}
         <div
           style={{
@@ -5430,6 +5612,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         </div>
 
         <TopNav
+          children={children}
           selectedChild={selectedChild}
           onSwitchChild={(c) => { setSelectedChild(c); setAllChildren(false); }}
           allChildren={allChildren}
@@ -5437,6 +5620,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           showAllOption={activeTab === "home"}
           hideChildSwitcher={activeTab === "messages"}
           onProfileOpen={() => { setShowProfile(true); setProfileChild(null); setProfileScreen(null); }}
+          onLogoClick={() => { setSubPage(null); setSelectedMessage(null); setMessagesSchool(null); setShowCompose(false); setMyChildPage(null); setDetailPage(null); setSelectedClub(null); setFlowStep(null); setActiveTab("home"); }}
           surface={activeTab === "home" && !subPage ? "brand" : "default"}
         />
         </>)}
@@ -5607,7 +5791,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                         {item.clubLead && (
                           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>
                             <Users size={12} color="var(--color-text-secondary)" strokeWidth={1.5} />
-                            {item.clubLead}
+                            {formatLeads(item.clubLead)}
                           </span>
                         )}
                       </div>
@@ -5996,7 +6180,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                               </div>
                               {item.sessions > 1 && <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 2 }}>{`${item.sessions} sessions`}</div>}
                               <div style={{ marginTop: 8 }}>
-                                {item.status === "cancelled" && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA" }}>Cancelled · Refund processing</span>}
+                                {item.status === "cancelled" && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA" }}>Cancelled</span>}
                                 {item.status === "pending-payment" && item.paymentModel === "provisional" && <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 99, fontSize: "var(--font-size-3)", fontWeight: 600, background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }}>Pay to confirm booking</span>}
                                 {item.status === "pending-payment" && item.paymentModel === "variable" && (() => {
                                   const todayDate = new Date(2026, 4, 29);
@@ -6094,9 +6278,9 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               { id: 3, type: "wraparound", title: "Breakfast club", icon: wraparoundIcon, days: "Mon \u2013 Fri", dayOrder: [1,2,3,4,5], time: bkTimeDisplay, price: "\u00a35", priceLabel: "per session", termDates: "6 Apr \u2013 17 Jul 2026", paymentTiming: "Charged per session when your child attends", bookingModel: "daily", sameDayCutoff: "Book by 15:00 the day before", deadline: null, deadlineLabel: null, places: 29, individualOnly: true },
               // \u2500\u2500 Trips \u2500\u2500 one-off events; no recurring days. Sorted by trip date; sign-up deadline shown as a card pill.
               { id: 31, type: "trips", title: "Science Museum", icon: tripIcon, years: ["Year 6"], paymentModel: "fixed", price: "\u00a312", priceLabel: "", cost: 12, dateRange: "Thu 30 Apr 2026", tripDate: new Date(2026, 3, 30), time: "09:00\u201315:30", academicYear: "2025/2026", deadline: new Date(2026, 3, 16), deadlineLabel: "16 Apr", places: 18, location: "Science Museum, South Kensington", clubLead: "Mr Harris" },
-              { id: 33, type: "trips", title: "Year 4 residential \u2013 PGL", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3185", priceLabel: "", totalCost: 185, deposit: 85, installmentDeadline: "1 May 2026", dateRange: "Tue 12 \u2013 Thu 14 May 2026", tripDate: new Date(2026, 4, 12), time: "08:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 3, 30), deadlineLabel: "30 Apr", places: 12, location: "Marchants Hill, Surrey", clubLead: "Mrs Hughes" },
+              { id: 33, type: "trips", title: "Year 4 residential \u2013 PGL", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3185", priceLabel: "", totalCost: 185, deposit: 85, installmentDeadline: "1 May 2026", dateRange: "Tue 12 \u2013 Thu 14 May 2026", tripDate: new Date(2026, 4, 12), time: "08:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 3, 30), deadlineLabel: "30 Apr", places: 12, location: "Marchants Hill, Surrey", clubLead: ["Mrs Hughes", "Mr Patel", "Miss Bennett"] },
               { id: 32, type: "trips", title: "Local woodland habitat study", icon: tripIcon, years: ["Year 4"], paymentModel: "variable", suggestedAmount: 8, minimumContribution: 0, price: "\u00a38", priceLabel: "", dateRange: "Wed 13 May 2026", tripDate: new Date(2026, 4, 13), time: "09:30\u201312:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 6), deadlineLabel: "6 May", places: 30, location: "Oakwood Local Nature Reserve", clubLead: "Miss Bennett" },
-              { id: 4, type: "trips", title: "The Lion King", icon: tripIcon, paymentModel: "free", price: "Free", priceLabel: "", dateRange: "Fri 22 May 2026", tripDate: new Date(2026, 4, 22), time: "11:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 8), deadlineLabel: "8 May", places: 32, location: "Lyceum Theatre, London", clubLead: "Mrs Hughes" },
+              { id: 4, type: "trips", title: "The Lion King", icon: tripIcon, paymentModel: "free", price: "Free", priceLabel: "", dateRange: "Fri 22 May 2026", tripDate: new Date(2026, 4, 22), time: "11:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 8), deadlineLabel: "8 May", places: 32, location: "Lyceum Theatre, London", clubLead: ["Mrs Hughes", "Mr Harris", "Miss Bennett"] },
               { id: 35, type: "trips", title: "Theatre trip \u2013 Matilda", icon: tripIcon, years: ["Year 6"], paymentModel: "fixed", price: "\u00a316", priceLabel: "", cost: 16, full: true, dateRange: "Tue 9 Jun 2026", tripDate: new Date(2026, 5, 9), time: "17:30\u201322:00", academicYear: "2025/2026", deadline: new Date(2026, 4, 22), deadlineLabel: "22 May", places: 0, location: "Cambridge Theatre, London", clubLead: "Mr Harris" },
               { id: 34, type: "trips", title: "Year 5 residential \u2013 France", icon: tripIcon, years: ["Year 4"], paymentModel: "instalment", price: "\u00a3525", priceLabel: "", totalCost: 525, deposit: 95, installmentDeadline: "1 Jun 2027", futureYear: true, dateRange: "Tue 6 \u2013 Sun 11 Jul 2027", tripDate: new Date(2027, 6, 6), time: "06:00\u201320:00", academicYear: "2026/2027", deadline: new Date(2026, 5, 30), deadlineLabel: "30 Jun 2026", places: 40, location: "Normandy, France", clubLead: "Mrs Hughes" },
               { id: 36, type: "trips", title: "Leavers' residential \u2013 PGL Liddington", icon: tripIcon, years: ["Year 6"], paymentModel: "instalment", price: "\u00a3295", priceLabel: "", totalCost: 295, deposit: 90, installmentDeadline: "30 Jun 2026", dateRange: "Mon 6 \u2013 Fri 10 Jul 2026", tripDate: new Date(2026, 6, 6), time: "09:00\u201316:00", academicYear: "2025/2026", deadline: new Date(2026, 5, 19), deadlineLabel: "19 Jun", places: 30, location: "PGL Liddington, Wiltshire", clubLead: "Mr Harris" },
@@ -6110,7 +6294,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
               // \u2500\u2500 Secondary trips (Ethan, Riverside Secondary) \u2500\u2500
               { id: 37, type: "trips", title: "Natural History Museum", icon: tripIcon, school: "Riverside Secondary", paymentModel: "fixed", price: "\u00a318", priceLabel: "", cost: 18, dateRange: "Fri 12 Jun 2026", tripDate: new Date(2026, 5, 12), time: "08:15\u201316:00", academicYear: "2025/2026", deadline: new Date(2026, 5, 1), deadlineLabel: "1 Jun", places: 24, location: "Natural History Museum, South Kensington", clubLead: "Mrs Clarke" },
               { id: 38, type: "trips", title: "National Theatre", icon: tripIcon, school: "Riverside Secondary", paymentModel: "fixed", price: "\u00a322", priceLabel: "", cost: 22, dateRange: "Thu 25 Jun 2026", tripDate: new Date(2026, 5, 25), time: "17:30\u201322:30", academicYear: "2025/2026", deadline: new Date(2026, 5, 11), deadlineLabel: "11 Jun", places: 20, location: "National Theatre, South Bank", clubLead: "Mr Dawson" },
-              { id: 39, type: "trips", title: "Duke of Edinburgh Bronze expedition", icon: tripIcon, school: "Riverside Secondary", paymentModel: "fixed", price: "\u00a325", priceLabel: "", cost: 25, dateRange: "Sat 4 \u2013 Sun 5 Jul 2026", tripDate: new Date(2026, 6, 4), time: "08:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 5, 20), deadlineLabel: "20 Jun", places: 16, location: "Surrey Hills", clubLead: "Mr Reed" },
+              { id: 39, type: "trips", title: "Duke of Edinburgh Bronze expedition", icon: tripIcon, school: "Riverside Secondary", paymentModel: "fixed", price: "\u00a325", priceLabel: "", cost: 25, dateRange: "Sat 4 \u2013 Sun 5 Jul 2026", tripDate: new Date(2026, 6, 4), time: "08:00\u201317:00", academicYear: "2025/2026", deadline: new Date(2026, 5, 20), deadlineLabel: "20 Jun", places: 16, location: "Surrey Hills", clubLead: ["Mr Reed", "Ms Wallace", "Mr Dawson"] },
               // \u2500\u2500 Year 6 club (Lucas, Oakwood Primary) \u2500\u2500
               { id: 46, type: "clubs", title: "SATs booster", icon: clubIcon, years: ["Year 6"], days: "Wed", dayOrder: [3], time: "08:00\u201308:45", price: "Free", priceLabel: "", termDates: "6 Apr \u2013 17 Jul 2026", deadline: null, deadlineLabel: null, places: 20, individualOnly: true, location: "Library", clubLead: "Mrs Doyle" },
             ];
@@ -6722,10 +6906,381 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
             );
           })()}
 
+          {subPage === "basket" && basketPickerActive && (
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+              {/* Pattern C nav bar — back + left-aligned title, no close */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 8px", background: "var(--color-white)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)", flexShrink: 0 }}>
+                <button onClick={() => { setSubPage(null); setBasketViewSchool(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </button>
+                <span style={{ fontSize: "var(--font-size-5)", fontWeight: 600, color: "var(--color-text-primary)" }}>Basket</span>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 20px", minHeight: 0, background: "var(--color-grey-050)" }}>
+                {basketsWithItems.map(({ school, count }) => {
+                  const schoolChildren = children.filter(c => c.school === school);
+                  return (
+                    <Card key={school} padding="none" style={{ marginBottom: 10, cursor: "pointer" }} onClick={() => setBasketViewSchool(school)}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px" }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--color-brand-050)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <School size={20} color="var(--color-brand-600)" strokeWidth={1.5} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>{school}</div>
+                          <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 2 }}>
+                            {schoolChildren.length > 1
+                              ? `${schoolChildren.map(c => c.name).join(" & ")} · shared basket`
+                              : schoolChildren[0].name}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                          <span style={{ minWidth: 22, height: 22, borderRadius: 11, background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-1)", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 6px" }}>{count}</span>
+                          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {subPage === "basket" && !basketPickerActive && (() => {
+            const activeBasketSchool = basketViewSchool || selectedChild.school;
+            const items = (basketsBySchool[activeBasketSchool] || []).slice().sort((a, b) => b.addedAt - a.addedAt);
+            const total = items.reduce((sum, it) => sum + it.amount, 0);
+            const isEmpty = items.length === 0;
+            const backHandler = () => {
+              if (basketsWithItems.length >= 2 && basketViewSchool) {
+                setBasketViewSchool(null);
+              } else {
+                setSubPage(null); setBasketViewSchool(null);
+              }
+            };
+            const closeHandler = () => { setSubPage(null); setBasketViewSchool(null); };
+            return (
+              <div style={{ background: isEmpty ? "var(--color-white)" : "var(--color-grey-050)", height: "100%", display: "flex", flexDirection: "column" }}>
+                {/* Phone status bar area (notch/dynamic-island stand-in) — Pattern B owns its own chrome */}
+                <div style={{ height: isMobile ? 20 : 50, background: "var(--color-white)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
+                  <div style={{ width: 120, height: 28, background: "#222", borderRadius: 14, display: isMobile ? "none" : "block" }} />
+                </div>
+                {/* Pattern B nav — workflow step (ends in Pay) */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 8px", background: "var(--color-white)", boxShadow: "0 1px 0 rgba(0,0,0,0.06)", flexShrink: 0 }}>
+                  <button onClick={backHandler} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M12 4L6 10L12 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </button>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, flex: 1, minWidth: 0, padding: "0 8px" }}>
+                    <span style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Basket</span>
+                    {isMultiSchoolHousehold && (
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>For {activeBasketSchool}</span>
+                    )}
+                  </div>
+                  <button onClick={closeHandler} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4L16 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M16 4L4 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+                {isEmpty ? (() => {
+                  const otherBaskets = basketsWithItems.filter(b => b.school !== activeBasketSchool);
+                  const ctaLabel = otherBaskets.length === 0 ? "Browse Book & Pay" : otherBaskets.length === 1 ? "View other basket" : "Switch baskets";
+                  const ctaHandler = () => {
+                    if (otherBaskets.length === 0) { closeHandler(); return; }
+                    if (otherBaskets.length === 1) { setBasketViewSchool(otherBaskets[0].school); return; }
+                    setBasketViewSchool(null);
+                  };
+                  return (
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 32px", textAlign: "center", gap: 20 }}>
+                    <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)" }}>Basket cleared</div>
+                    <button onClick={ctaHandler} style={{ padding: "12px 28px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{ctaLabel}</button>
+                  </div>
+                  );
+                })() : (<>
+                  <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <span style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)" }}>{items.length} item{items.length === 1 ? "" : "s"}</span>
+                      <button onClick={() => clearBasket(activeBasketSchool)} style={{ background: "none", border: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-2)", fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Clear basket</button>
+                    </div>
+                    {items.map(item => {
+                      const childForItem = children.find(c => c.name === item.childName);
+                      const isSingleChild = children.length === 1;
+                      // Title + sub-line: build from typed fields; fall back to stored values.
+                      let displayTitle = item.title;
+                      let displaySubLine = item.subLine;
+                      if (item.type === "meal-topup") {
+                        displayTitle = item.account === "meals" ? "Meals account" : item.account === "wraparound" ? "Wraparound account" : item.account === "milk" ? "Milk account" : item.title;
+                        displaySubLine = "Top-up";
+                      } else if (item.type === "club" && item.periodLabel && typeof item.sessionCount === "number") {
+                        displaySubLine = `${item.periodLabel} · ${item.sessionCount} session${item.sessionCount === 1 ? "" : "s"}`;
+                      } else if (item.type === "club" && item.firstDate && item.subLine) {
+                        displaySubLine = `${item.subLine} · from ${item.firstDate}`;
+                      }
+                      // Third line: part payment wins; else suggested reference for voluntary.
+                      let displayThirdLine = null;
+                      const fmtGBP = (n) => n % 1 === 0 ? `£${n}` : `£${n.toFixed(2)}`;
+                      if (typeof item.partialOf === "number") {
+                        const deadline = item.balanceDeadline ? item.balanceDeadline.replace(/\s\d{4}$/, "") : null;
+                        displayThirdLine = deadline
+                          ? `Part payment of ${fmtGBP(item.partialOf)} · Due ${deadline}`
+                          : `Part payment of ${fmtGBP(item.partialOf)}`;
+                      } else if (item.editableAmount && typeof item.editableAmount.max === "number" && item.amount < item.editableAmount.max && item.type !== "meal-topup") {
+                        displayThirdLine = `Suggested ${fmtGBP(item.editableAmount.max)}`;
+                      }
+                      return (
+                      <div key={item.id} style={{ position: "relative", marginBottom: 8, borderRadius: 8, overflow: "hidden" }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeBasketItemById(item.id, activeBasketSchool); }}
+                          style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: "var(--color-bg-destructive)", border: "none", color: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                        >
+                          Remove
+                        </button>
+                        <div
+                          onPointerDown={(e) => { swipeStart.current = { x: e.clientX, id: item.id }; }}
+                          onPointerMove={(e) => {
+                            if (!swipeStart.current || swipeStart.current.id !== item.id) return;
+                            const dx = e.clientX - swipeStart.current.x;
+                            if (dx < -40 && swipedRowId !== item.id) setSwipedRowId(item.id);
+                            else if (dx > 40 && swipedRowId === item.id) setSwipedRowId(null);
+                          }}
+                          onPointerUp={() => { swipeStart.current = null; }}
+                          onClick={() => { if (swipedRowId === item.id) setSwipedRowId(null); }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", background: "var(--color-white)", border: "1px solid var(--color-grey-100)", borderRadius: 8, transform: swipedRowId === item.id ? "translateX(-80px)" : "translateX(0)", transition: "transform 0.2s ease", touchAction: "pan-y" }}
+                        >
+                        {!isSingleChild && childForItem && (
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: childForItem.avatarColour.bg, border: `1px solid ${childForItem.avatarColour.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxSizing: "border-box", marginTop: 2 }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: childForItem.avatarColour.text, lineHeight: 1 }}>{childForItem.initials}</span>
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.3 }}>{displayTitle}</div>
+                          {displaySubLine && (
+                            <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", lineHeight: 1.4, marginTop: 4 }}>{displaySubLine}</div>
+                          )}
+                          {displayThirdLine && (
+                            <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)", marginTop: 4 }}>{displayThirdLine}</div>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", flexShrink: 0, gap: 8 }}>
+                          <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{item.amount.toFixed(2)}</div>
+                          {item.editableAmount && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditAmountValue(item.amount);
+                                setEditAmountError(null);
+                                setEditAmountSheet({ itemId: item.id, schoolName: activeBasketSchool, type: item.type, account: item.account, title: item.title, subLine: item.subLine, childName: item.childName, min: item.editableAmount.min ?? 0, max: item.editableAmount.max, partialOf: item.partialOf, balanceDeadline: item.balanceDeadline });
+                              }}
+                              style={{ background: "none", border: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-2)", fontWeight: 600, cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                        </div>
+                      </div>
+                    );})}
+                  </div>
+                  <div style={{ background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)", padding: "12px 16px 20px", flexShrink: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-secondary)" }}>Total</span>
+                      <span style={{ fontSize: "var(--font-size-5)", fontWeight: 700, color: "var(--color-text-primary)" }}>£{total.toFixed(2)}</span>
+                    </div>
+                    <button onClick={() => setBasketCheckout({ schoolName: activeBasketSchool, items, total, stage: "stripe" })} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Pay £{total.toFixed(2)}</button>
+                  </div>
+                </>)}
+              </div>
+            );
+          })()}
+
+          {/* Basket checkout — Stripe sheet */}
+          {basketCheckout?.stage === "stripe" && (
+            <div onClick={() => setBasketCheckout(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 40 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: "20px 20px 0 0", paddingBottom: 28 }}>
+                <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+                  <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 16px 8px" }}>
+                  <button onClick={() => setBasketCheckout(null)} style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-bg-secondary)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 2L10 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/><path d="M10 2L2 10" stroke="var(--color-icon-default)" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+                <div style={{ padding: "0 16px 4px" }}>
+                  <button onClick={() => { setBasketCheckout(prev => ({ ...prev, stage: "applepay" })); setTimeout(() => { setBasketCheckout(prev => prev ? { ...prev, stage: "confirmation" } : null); applyBasketPayment(basketCheckout); }, 4500); }} style={{ width: "100%", padding: "13px", borderRadius: 8, border: "none", background: "#000", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16, fontFamily: "inherit" }}>
+                    <svg width="16" height="19" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)"/><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)"/></svg>
+                    <span>Pay</span>
+                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                    <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", whiteSpace: "nowrap" }}>Or pay using</span>
+                    <div style={{ flex: 1, height: 1, background: "var(--color-border-default)" }} />
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>Saved</div>
+                  <div style={{ border: "2px solid #5469d4", borderRadius: 8, padding: "12px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                      <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#eb001b", marginRight: -7, zIndex: 1 }} />
+                      <div style={{ width: 20, height: 13, borderRadius: "50%", background: "#f79e1b" }} />
+                    </div>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1 }}>···· 7492</span>
+                    <span style={{ fontSize: "var(--font-size-3)", color: "#5469d4" }}>View more ›</span>
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-3)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-secondary)", marginBottom: 8 }}>New payment method</div>
+                  <div style={{ border: "1px solid var(--color-border-default)", borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+                    <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                      <div style={{ width: 34, height: 24, borderRadius: 4, background: "var(--color-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <svg width="18" height="13" viewBox="0 0 18 13" fill="none"><rect x="0.5" y="0.5" width="17" height="12" rx="1.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/><path d="M0.5 4H17.5" stroke="var(--color-icon-default)" strokeWidth="1.1"/></svg>
+                      </div>
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-primary)", flex: 1, textAlign: "left" }}>New card</span>
+                      <svg width="8" height="13" viewBox="0 0 8 13" fill="none"><path d="M1 1L7 6.5L1 12" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </div>
+                  </div>
+                  <button onClick={() => { applyBasketPayment(basketCheckout); setBasketCheckout(prev => prev ? { ...prev, stage: "confirmation" } : null); }} style={{ width: "100%", padding: "14px", borderRadius: 8, border: "none", background: "#5469d4", color: "#fff", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "inherit" }}>
+                    <span>Pay £{basketCheckout.total.toFixed(2)}</span>
+                    <svg width="13" height="15" viewBox="0 0 13 15" fill="none"><path d="M2.5 6.5V4.5C2.5 2.57 4.07 1 6 1C7.93 1 9.5 2.57 9.5 4.5V6.5" stroke="rgba(255,255,255,0.8)" strokeWidth="1.3" strokeLinecap="round"/><rect x="1" y="6.5" width="11" height="8" rx="1.5" fill="rgba(255,255,255,0.9)"/><circle cx="6.5" cy="10.5" r="1.2" fill="#5469d4"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Basket checkout — Apple Pay */}
+          {basketCheckout?.stage === "applepay" && (
+            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 50 }}>
+              <div style={{ background: "#1c1c1e", borderRadius: "16px 16px 0 0", padding: "20px 20px 30px", color: "#fff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <span style={{ background: "none", border: "none", color: "#0a84ff", fontSize: "var(--font-size-4)", fontFamily: "inherit" }}>Cancel</span>
+                  <svg width="16" height="20" viewBox="0 0 20 24" fill="none"><path d="M14.5 0.8C13.4 2.1 11.7 3.1 10.3 3C10.1 1.6 10.8 0.1 11.8 -0.6C12.9 -1.4 14.4 -1.8 15 -0.2C14.9 0 14.7 0.4 14.5 0.8Z" fill="#fff" transform="translate(0,4)" /><path d="M15 4.5C13.3 4.4 11.8 5.4 11 5.4C10.1 5.4 8.8 4.5 7.4 4.6C5.6 4.6 3.9 5.6 3 7.2C1.1 10.4 2.5 15.2 4.3 17.8C5.2 19.1 6.3 20.5 7.7 20.4C9 20.4 9.5 19.6 11.1 19.6C12.7 19.6 13.2 20.4 14.5 20.4C15.9 20.4 16.9 19.1 17.8 17.8C18.4 16.9 18.9 15.9 19.2 14.8C16.7 13.8 16 10.4 18.4 8.8C17.5 6.3 15.8 4.6 15 4.5Z" fill="#fff" transform="translate(-2,2) scale(0.85)" /></svg>
+                </div>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ fontSize: "var(--font-size-3)", color: "#999", marginBottom: 4 }}>ARBOR EDUCATION</div>
+                  <div style={{ fontSize: "var(--font-size-7)", fontWeight: 700, color: "#fff" }}>£{basketCheckout.total.toFixed(2)}</div>
+                </div>
+                <div style={{ background: "#2c2c2e", borderRadius: 12, padding: "14px 16px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 32, height: 22, borderRadius: 4, background: "linear-gradient(135deg, #434343, #666)", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 8, color: "#fff", fontWeight: 700 }}>VISA</span></div>
+                    <div><div style={{ fontSize: "var(--font-size-3)", color: "#fff" }}>Visa ···· 4289</div><div style={{ fontSize: "var(--font-size-1)", color: "#888" }}>Kate Brown</div></div>
+                  </div>
+                  <svg width="8" height="14" viewBox="0 0 8 14" fill="none"><path d="M1 1L7 7L1 13" stroke="#666" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 12, border: "2px solid #555", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M20 2V6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M14 2V8" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M9 18C9 18 11 21 14 21C17 21 19 18 19 18" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M2 8H6" stroke="#999" strokeWidth="2" strokeLinecap="round" /><path d="M22 8H26" stroke="#999" strokeWidth="2" strokeLinecap="round" /></svg>
+                  </div>
+                  <div style={{ fontSize: "var(--font-size-3)", color: "#999" }}>Double-click side button</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Basket checkout — confirmation (Pattern D terminal) */}
+          {basketCheckout?.stage === "confirmation" && (() => {
+            const paid = basketCheckout.items;
+            const bookings = paid.filter(i => i.type === "club" || i.type === "trip");
+            const topups = paid.filter(i => i.type === "meal-topup");
+            const hasPartPay = bookings.some(i => typeof i.partialOf === "number");
+            const primaryCtaLabel = bookings.length > 0 ? "Go to bookings & orders" : "Back to Book & Pay";
+            const primaryCtaHandler = () => {
+              setBasketCheckout(null);
+              setBasketViewSchool(null);
+              if (bookings.length > 0) {
+                setBookingsFilter(hasPartPay ? "needs-attention" : "upcoming");
+                setSubPage("my-bookings");
+              } else {
+                setSubPage(null);
+              }
+            };
+            const closeHandler = () => { setBasketCheckout(null); setBasketViewSchool(null); setSubPage(null); };
+            const fmtGBP = (n) => n % 1 === 0 ? `£${n}` : `£${n.toFixed(2)}`;
+            const isSingleChild = children.length === 1;
+            const renderAvatar = (childName) => {
+              if (isSingleChild) return null;
+              const c = children.find(ch => ch.name === childName);
+              if (!c) return null;
+              return (
+                <div style={{ width: 24, height: 24, borderRadius: "50%", background: c.avatarColour.bg, border: `1px solid ${c.avatarColour.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: c.avatarColour.text, lineHeight: 1 }}>{c.initials}</span>
+                </div>
+              );
+            };
+            const bookingSubLine = (item) => {
+              if (item.type === "club" && item.periodLabel && typeof item.sessionCount === "number") return `${item.periodLabel} · ${item.sessionCount} session${item.sessionCount === 1 ? "" : "s"}`;
+              if (item.type === "club" && item.firstDate && item.subLine) return `${item.subLine} · from ${item.firstDate}`;
+              return item.subLine;
+            };
+            return (
+              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--color-grey-050)", zIndex: 30 }}>
+                <div style={{ height: isMobile ? 20 : 50, background: "var(--color-grey-050)", display: "flex", alignItems: "flex-end", justifyContent: "center", paddingBottom: 4, flexShrink: 0 }}>
+                  <div style={{ width: 120, height: 28, background: "var(--color-text-primary)", borderRadius: 14, display: isMobile ? "none" : "block" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 8px 0", flexShrink: 0 }}>
+                  <button onClick={closeHandler} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4L16 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M16 4L4 16" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+                <div style={{ padding: "8px 16px 20px", textAlign: "center", flexShrink: 0 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-success-050)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                    <svg width="24" height="24" viewBox="0 0 36 36" fill="none"><path d="M10 18L16 24L26 12" stroke="var(--color-success-700)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </div>
+                  <h2 style={{ fontSize: "var(--font-size-6)", fontWeight: 600, color: "var(--color-text-primary)", margin: 0, lineHeight: 1.2 }}>Payment complete</h2>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 24px" }}>
+                  {bookings.length > 0 && (
+                    <div style={{ marginBottom: topups.length > 0 ? 20 : 0 }}>
+                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>Bookings ({bookings.length})</div>
+                      <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "4px 16px" }}>
+                        {bookings.map((item, idx) => {
+                          const deadline = item.balanceDeadline ? item.balanceDeadline.replace(/\s\d{4}$/, "") : null;
+                          const stillDue = typeof item.partialOf === "number" ? item.partialOf - item.amount : 0;
+                          return (
+                            <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 0", borderTop: idx === 0 ? "none" : "1px solid var(--color-grey-100)" }}>
+                              {renderAvatar(item.childName)}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.3 }}>{item.title}</div>
+                                {bookingSubLine(item) && <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", marginTop: 4 }}>{bookingSubLine(item)}</div>}
+                                {stillDue > 0 && deadline && (
+                                  <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-tertiary)", marginTop: 4 }}>{fmtGBP(stillDue)} still due by {deadline}</div>
+                                )}
+                              </div>
+                              <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)", flexShrink: 0 }}>{fmtGBP(item.amount)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {topups.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: 8 }}>Top-ups ({topups.length})</div>
+                      <div style={{ background: "var(--color-white)", borderRadius: 12, border: "1px solid var(--color-grey-100)", padding: "4px 16px" }}>
+                        {topups.map((item, idx) => {
+                          const accountName = item.account === "meals" ? "Meals account" : item.account === "wraparound" ? "Wraparound account" : item.account === "milk" ? "Milk account" : "Account";
+                          return (
+                            <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 0", borderTop: idx === 0 ? "none" : "1px solid var(--color-grey-100)" }}>
+                              {renderAvatar(item.childName)}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.3 }}>{accountName}</div>
+                                <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", marginTop: 4 }}>Top-up</div>
+                              </div>
+                              <div style={{ fontSize: "var(--font-size-4)", fontWeight: 700, color: "var(--color-text-primary)", flexShrink: 0 }}>{fmtGBP(item.amount)}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ background: "var(--color-white)", borderTop: "1px solid var(--color-border-default)", padding: "12px 16px 20px", flexShrink: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <span style={{ fontSize: "var(--font-size-4)", fontWeight: 500, color: "var(--color-text-secondary)" }}>Total paid</span>
+                    <span style={{ fontSize: "var(--font-size-5)", fontWeight: 700, color: "var(--color-text-primary)" }}>{fmtGBP(basketCheckout.total)}</span>
+                  </div>
+                  <button onClick={primaryCtaHandler} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>{primaryCtaLabel}</button>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Main tab content */}
           {!subPage && activeTab === "book-pay" && EXPLORE_BOOK_PAY && (
             <BookPayLandingV2
-              basketCount={basketCount}
+              basketsWithItems={basketsWithItems}
+              setBasketViewSchool={setBasketViewSchool}
               bookingsSectionState={bookingsSectionState}
               setBookingsSectionState={setBookingsSectionState}
               bookingsNeedsAttentionCount={bookingsNeedsAttentionCount}
@@ -6758,7 +7313,7 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
 
               {/* Basket banner */}
               {basketCount > 0 && (
-                <div onClick={() => {}} style={{ margin: "0 16px", padding: "12px 16px", borderRadius: 12, background: "var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+                <div onClick={() => setSubPage("basket")} style={{ margin: "0 16px", padding: "12px 16px", borderRadius: 12, background: "var(--color-brand-600)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2H3.5L5.5 10H12L13.5 5H4.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="6" cy="12.5" r="0.8" fill="white"/><circle cx="11" cy="12.5" r="0.8" fill="white"/></svg>
                     <span style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-white)" }}>{basketCount} item{basketCount !== 1 ? "s" : ""} in basket</span>
@@ -8316,8 +8871,8 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
           )}
         </div>
 
-        {!selectedMessage && !showCompose && (!myChildPage || myChildPage === "absences" || myChildPage === "consents") && !(subPage === "my-bookings" && selectedUpcomingItem?.paymentModel) && (
-          <BottomNavBar activeTab={subPage ? "book-pay" : activeTab} onTabChange={(tab) => { setSubPage(null); setSelectedMessage(null); setMessagesSchool(null); setShowCompose(false); setMyChildPage(null); if ((tab === "my-child" || tab === "book-pay") && allChildren) setAllChildren(false); setActiveTab(tab); }} badges={{ messages: unreadCount, "book-pay": bookingsNeedsAttentionCount > 0 ? { dot: true } : basketCount, "my-child": pendingConsentDot ? { dot: true } : undefined }} />
+        {!selectedMessage && !showCompose && (!myChildPage || myChildPage === "absences" || myChildPage === "consents") && !(subPage === "my-bookings" && selectedUpcomingItem?.paymentModel) && !(subPage === "basket" && !basketPickerActive) && (
+          <BottomNavBar activeTab={subPage ? "book-pay" : activeTab} onTabChange={(tab) => { setSubPage(null); setSelectedMessage(null); setMessagesSchool(null); setShowCompose(false); setMyChildPage(null); if ((tab === "my-child" || tab === "book-pay") && allChildren) setAllChildren(false); setActiveTab(tab); }} badges={{ messages: unreadCount, "book-pay": bookingsNeedsAttentionCount > 0 ? { dot: true } : (totalBasketCount > 0 ? { dot: true, variant: "brand" } : undefined), "my-child": pendingConsentDot ? { dot: true } : undefined }} />
         )}
 
         {/* Home indicator */}
@@ -9146,6 +9701,44 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
                     </Card>
                   </div>
 
+                  {/* Prototype settings — dev only */}
+                  <div style={{ padding: "16px 16px 0" }}>
+                    <div style={{ fontSize: "var(--font-size-2)", fontWeight: 600, color: "var(--color-text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, padding: "0 4px" }}>Prototype settings</div>
+                    <Card padding="none">
+                      <div style={{ padding: "14px 16px" }}>
+                        <div style={{ fontSize: "var(--font-size-4)", fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 4 }}>Household mode</div>
+                        <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginBottom: 12 }}>Switch between family setups to test flows</div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {[
+                            { id: "multi", label: "Collini family", sub: "3 children · 2 schools" },
+                            { id: "single", label: "Single child", sub: "Molly · 1 school" },
+                          ].map(opt => {
+                            const isActive = householdMode === opt.id;
+                            return (
+                              <button
+                                key={opt.id}
+                                onClick={() => setHouseholdMode(opt.id)}
+                                style={{
+                                  flex: 1,
+                                  padding: "10px 12px",
+                                  borderRadius: 10,
+                                  border: `1.5px solid ${isActive ? "var(--color-brand-600)" : "var(--color-border-default)"}`,
+                                  background: isActive ? "var(--color-brand-050)" : "var(--color-bg-primary)",
+                                  cursor: "pointer",
+                                  fontFamily: "inherit",
+                                  textAlign: "left",
+                                }}
+                              >
+                                <div style={{ fontSize: "var(--font-size-3)", fontWeight: 600, color: isActive ? "var(--color-brand-600)" : "var(--color-text-primary)" }}>{opt.label}</div>
+                                <div style={{ fontSize: "var(--font-size-2)", color: "var(--color-text-secondary)", marginTop: 2 }}>{opt.sub}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
                   {/* Log out */}
                   <div style={{ padding: "20px 16px 24px" }}>
                     <Button variant="destructive-secondary" style={{ width: "100%" }}>Log out</Button>
@@ -9465,11 +10058,134 @@ const [paymentMethod, setPaymentMethod] = useState("card"); // "card" or "apple"
         </>)}
         </>)}
 
+        {/* Swap sheet — one option per club rule (memberships/periods are mutually exclusive) */}
+        {swapSheet && (
+          <div onClick={() => setSwapSheet(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 210 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px", flexShrink: 0 }}>
+                <button onClick={() => setSwapSheet(null)} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round" /></svg>
+                </button>
+              </div>
+              <div style={{ padding: "0 20px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)", lineHeight: 1.3 }}>Replace {swapSheet.existing.periodLabel || swapSheet.existing.subLine} with {swapSheet.incoming.periodLabel || swapSheet.incoming.subLine}?</div>
+                <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)", marginTop: 8, lineHeight: 1.5 }}>You can only have one option per club in your basket. {swapSheet.existing.periodLabel || swapSheet.existing.subLine} (£{swapSheet.existing.amount.toFixed(2)}) will be removed.</div>
+              </div>
+              <div style={{ padding: "20px 16px 28px", display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
+                <button onClick={executeSwap} className="btn-action" style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Replace</button>
+                <button onClick={() => setSwapSheet(null)} style={{ width: "100%", padding: "12px", borderRadius: 28, border: "none", background: "none", color: "var(--color-brand-600)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit amount sheet — mirrors the standalone top-up sheet layout */}
+        {editAmountSheet && (() => {
+          const isTopUp = editAmountSheet.type === "meal-topup";
+          const min = editAmountSheet.min;
+          const max = editAmountSheet.max;
+          const isVoluntary = !isTopUp && min === 0;
+          // Voluntary items in basket require > £0 (basket = paid items only). Editing to £0 would need a
+          // separate "confirm as free booking" flow; for now block at £1 with an inline nudge to swipe-remove.
+          const voluntaryFloor = 1;
+          // Basket-level Stripe floor: for top-ups, the £2 minimum is a checkout-total constraint, not an item constraint.
+          // Only surface it when the total (with this edit applied) would drop below £2.
+          const stripeFloor = 2;
+          const siblingItems = (basketsBySchool[editAmountSheet.schoolName] || []).filter(i => i.id !== editAmountSheet.itemId);
+          const otherItemsTotal = siblingItems.reduce((s, i) => s + i.amount, 0);
+          const totalIfSaved = editAmountValue + otherItemsTotal;
+          const belowStripe = isTopUp && totalIfSaved < stripeFloor;
+          const belowVoluntary = isVoluntary && editAmountValue < voluntaryFloor;
+          const belowMin = !isTopUp && !isVoluntary && editAmountValue < min;
+          const aboveMax = max != null && editAmountValue > max;
+          const outOfRange = belowStripe || belowVoluntary || belowMin || aboveMax;
+          // Balance labels for top-ups — only Meals in scope right now.
+          const accountLabel = editAmountSheet.account === "meals" ? "Meals" : editAmountSheet.account === "milk" ? "Milk" : editAmountSheet.account === "wraparound" ? "Wraparound" : null;
+          const accountBalance = editAmountSheet.account === "meals" ? mealsBalance : editAmountSheet.account === "wraparound" ? wraparoundBalance : null;
+          const dec = () => { const next = Math.max(0, editAmountValue - 1); setEditAmountValue(next); setEditAmountError(null); };
+          const inc = () => { const next = editAmountValue + 1; setEditAmountValue(next); setEditAmountError(null); };
+          return (
+            <div onClick={() => { setEditAmountSheet(null); setEditAmountError(null); }} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 210 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: "var(--color-white)", borderRadius: "20px 20px 0 0", minHeight: 520, maxHeight: "85%", display: "flex", flexDirection: "column" }}>
+                <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", flexShrink: 0 }}>
+                  <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--color-border-default)" }} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "4px 4px 8px", flexShrink: 0 }}>
+                  <button onClick={() => { setEditAmountSheet(null); setEditAmountError(null); }} className="btn-icon" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4L14 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/><path d="M14 4L4 14" stroke="var(--color-icon-default)" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 8px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+                  <div style={{ textAlign: "center", marginBottom: 32 }}>
+                    {isTopUp ? (<>
+                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>{editAmountSheet.childName}'s {accountLabel || "account"}</div>
+                      {accountBalance != null && (
+                        <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>Current balance · £{accountBalance.toFixed(2)}</div>
+                      )}
+                    </>) : (<>
+                      <div style={{ fontSize: "var(--font-size-5)", fontWeight: "var(--font-weight-semibold)", color: "var(--color-text-primary)" }}>{isVoluntary ? "Edit your contribution" : "Edit amount"}</div>
+                      <div style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-tertiary)", marginTop: 4 }}>
+                        {isVoluntary
+                          ? (max != null ? `Pay £${voluntaryFloor}–£${max}` : `Minimum £${voluntaryFloor}`)
+                          : `Pay £${min}–£${max}`}
+                      </div>
+                    </>)}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, marginBottom: 12 }}>
+                    <button onClick={dec} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>−</button>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 2, border: `1px solid ${outOfRange ? "var(--color-destructive-500)" : "var(--color-border-default)"}`, borderRadius: 8, padding: "6px 20px", background: "var(--color-white)", transition: "border-color 0.15s ease" }}>
+                      <span style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1 }}>£</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={editAmountValue}
+                        onChange={(e) => { const v = parseInt(e.target.value) || 0; setEditAmountValue(Math.max(0, v)); setEditAmountError(null); }}
+                        style={{ fontSize: 40, fontWeight: "var(--font-weight-bold)", color: "var(--color-text-primary)", letterSpacing: -1, border: "none", outline: "none", background: "transparent", width: `${String(editAmountValue).length * 28}px`, textAlign: "left", fontFamily: "inherit", MozAppearance: "textfield", WebkitAppearance: "none" }}
+                      />
+                    </div>
+                    <button onClick={inc} style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px solid var(--color-border-default)", background: "var(--color-bg-secondary)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-primary)", fontSize: 22, fontWeight: 300, flexShrink: 0, fontFamily: "inherit" }}>+</button>
+                  </div>
+                  <div style={{ height: 22, textAlign: "center", marginBottom: 24 }}>
+                    {belowStripe && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Basket total must be at least £{stripeFloor}</span>}
+                    {belowVoluntary && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Swipe left on the basket row to remove</span>}
+                    {belowMin && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Minimum is £{min}</span>}
+                    {aboveMax && <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-destructive)" }}>Maximum is £{max}</span>}
+                    {!outOfRange && !isTopUp && min > 0 && max != null && editAmountValue < max && editAmountSheet.balanceDeadline && (
+                      <span style={{ fontSize: "var(--font-size-3)", color: "var(--color-text-secondary)" }}>Full amount by {editAmountSheet.balanceDeadline}</span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                    {[5, 10, 20].map((incBy) => (
+                      <button key={incBy} onClick={() => { setEditAmountValue(editAmountValue + incBy); setEditAmountError(null); }} className="btn-pill" style={{ padding: "8px 20px", borderRadius: 20, border: "1px solid var(--color-border-default)", background: "var(--color-white)", fontSize: "var(--font-size-3)", fontWeight: 600, color: "var(--color-text-primary)", cursor: "pointer", fontFamily: "inherit" }}>
+                        +£{incBy}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding: "12px 16px 28px", flexShrink: 0, background: "var(--color-white)" }}>
+                  <button onClick={saveEditAmount} style={{ width: "100%", padding: "14px", borderRadius: 28, border: "none", background: "var(--color-brand-600)", color: "var(--color-white)", fontSize: "var(--font-size-4)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Update {isVoluntary ? "contribution" : "amount"} to £{editAmountValue.toFixed(2)}</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Basket toast */}
         {basketToast && (
           <div style={{ position: "absolute", bottom: 84, left: 16, right: 16, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: 12, background: "var(--color-grey-900)", opacity: basketToastFading ? 0 : 1, transition: "opacity 0.4s", pointerEvents: basketToastFading ? "none" : "auto" }}>
             <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-white)", flex: 1, marginRight: 12 }}>{basketToast.title}{typeof basketToast.amount === "number" ? (typeof basketToast.partialOf === "number" ? ` · part payment £${basketToast.amount.toFixed(2)} of £${basketToast.partialOf.toFixed(2)}` : ` · £${basketToast.amount.toFixed(2)}`) : ""} added for {basketToast.child}</span>
-            <button onClick={() => { setBasketToastFading(true); setTimeout(() => { setBasketToast(null); setBasketToastFading(false); }, 400); setSubPage(null); setFlowStep(null); setDetailPage(null); setActiveTab("book-pay"); }} style={{ background: "none", border: "none", color: "var(--color-brand-300)", fontSize: "var(--font-size-3)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0, flexShrink: 0 }}>View basket</button>
+            <button onClick={() => { setBasketViewSchool(basketToast.school || null); setBasketToastFading(true); setTimeout(() => { setBasketToast(null); setBasketToastFading(false); }, 400); setFlowStep(null); setDetailPage(null); setActiveTab("book-pay"); setSubPage("basket"); }} style={{ background: "none", border: "none", color: "var(--color-brand-300)", fontSize: "var(--font-size-3)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0, flexShrink: 0 }}>View basket</button>
+          </div>
+        )}
+
+        {/* Basket remove toast — undo action */}
+        {basketRemoveToast && (
+          <div style={{ position: "absolute", bottom: 84, left: 16, right: 16, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: 12, background: "var(--color-grey-900)", opacity: basketRemoveToastFading ? 0 : 1, transition: "opacity 0.4s", pointerEvents: basketRemoveToastFading ? "none" : "auto" }}>
+            <span style={{ fontSize: "var(--font-size-3)", fontWeight: 500, color: "var(--color-white)", flex: 1, marginRight: 12 }}>{basketRemoveToast.mode === "bulk" ? "Basket cleared" : `${basketRemoveToast.item.title} removed`}</span>
+            <button onClick={undoRemoveBasketItem} style={{ background: "none", border: "none", color: "var(--color-brand-300)", fontSize: "var(--font-size-3)", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", padding: 0, flexShrink: 0 }}>Undo</button>
           </div>
         )}
 
